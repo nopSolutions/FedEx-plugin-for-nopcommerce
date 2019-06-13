@@ -385,10 +385,11 @@ namespace FedexTracking
                 this.destinationField = value;
             }
         }
-        
+
         /// <remarks/>
+        /// This file created by Microsoft wdsl generator. He has a bug see https://github.com/nopSolutions/FedEx-plugin-for-nopcommerce/issues/1 for more information.
         [System.Xml.Serialization.XmlArrayAttribute(Order=5)]
-        [System.Xml.Serialization.XmlArrayItemAttribute("NotificationEventsAvailable", typeof(EMailNotificationEventType), IsNullable=false)]
+        [System.Xml.Serialization.XmlArrayItemAttribute("NotificationEventsAvailable", typeof(EMailNotificationEventType[]), IsNullable=false)]
         public EMailNotificationEventType[][] RecipientDetails
         {
             get

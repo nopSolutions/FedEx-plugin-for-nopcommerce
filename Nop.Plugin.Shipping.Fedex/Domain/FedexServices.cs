@@ -9,10 +9,12 @@ namespace Nop.Plugin.Shipping.Fedex.Domain
     /// </summary>
     public class FedexServices
     {
+        #region Properties
+
         /// <summary>
-        /// FedEx Service names
+        /// FedEx services string names
         /// </summary>
-        private readonly string[] _services = {
+        public string[] Services { get; } = {
                                         "FedEx Europe First International Priority",
                                         "FedEx 1Day Freight",
                                         "FedEx 2Day",
@@ -35,16 +37,6 @@ namespace Nop.Plugin.Shipping.Fedex.Domain
                                         "FedEx Freight",
                                         "FedEx National Freight"
                                         };
-
-        #region Properties
-
-        /// <summary>
-        /// FedEx services string names
-        /// </summary>
-        public string[] Services
-        {
-            get { return _services; }
-        }
 
         #endregion
 
