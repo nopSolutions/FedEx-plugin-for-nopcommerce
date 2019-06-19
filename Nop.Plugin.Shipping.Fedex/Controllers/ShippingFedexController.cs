@@ -6,6 +6,7 @@ using Nop.Plugin.Shipping.Fedex.Models;
 using Nop.Services;
 using Nop.Services.Configuration;
 using Nop.Services.Localization;
+using Nop.Services.Messages;
 using Nop.Services.Security;
 using Nop.Web.Framework;
 using Nop.Web.Framework.Controllers;
@@ -21,22 +22,25 @@ namespace Nop.Plugin.Shipping.Fedex.Controllers
 
         private readonly FedexSettings _fedexSettings;
         private readonly ILocalizationService _localizationService;
+        private readonly INotificationService _notificationService;
         private readonly IPermissionService _permissionService;
         private readonly ISettingService _settingService;
 
         #endregion
 
         #region Ctor
-        
+
         public ShippingFedexController(FedexSettings fedexSettings,
             ILocalizationService localizationService,
+            INotificationService notificationService,
             IPermissionService permissionService,
             ISettingService settingService)
         {
-            this._fedexSettings = fedexSettings;
-            this._localizationService = localizationService;
-            this._permissionService = permissionService;
-            this._settingService = settingService;
+            _fedexSettings = fedexSettings;
+            _localizationService = localizationService;
+            _notificationService = notificationService;
+            _permissionService = permissionService;
+            _settingService = settingService;
         }
 
         #endregion
@@ -127,7 +131,7 @@ namespace Nop.Plugin.Shipping.Fedex.Controllers
 
             _settingService.SaveSetting(_fedexSettings);
 
-            SuccessNotification(_localizationService.GetResource("Admin.Plugins.Saved"));
+            _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Plugins.Saved"));
 
             return Configure();
         }

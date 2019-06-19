@@ -1,9 +1,11 @@
-﻿@{
+﻿@model FedexShippingModel;
+
+@using Nop.Plugin.Shipping.Fedex.Models;
+@using Nop.Plugin.Shipping.Fedex;
+
+@{
     Layout = "_ConfigurePlugin";
 }
-
-@model Nop.Plugin.Shipping.Fedex.Models.FedexShippingModel
-@using Nop.Plugin.Shipping.Fedex;
 
 <form asp-controller="ShippingFedex" asp-action="Configure" method="post">
     <script>
