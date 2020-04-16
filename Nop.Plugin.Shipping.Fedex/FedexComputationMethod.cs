@@ -60,7 +60,7 @@ namespace Nop.Plugin.Shipping.Fedex
             if (!getShippingOptionRequest.Items?.Any() ?? true)
                 return new GetShippingOptionResponse { Errors = new[] { "No shipment items" } };
 
-            if (getShippingOptionRequest.ShippingAddress?.Country is null)
+            if (getShippingOptionRequest.CountryFrom is null)
                 return new GetShippingOptionResponse { Errors = new[] { "Shipping address is not set" } };
 
             return _fedexService.GetRates(getShippingOptionRequest);

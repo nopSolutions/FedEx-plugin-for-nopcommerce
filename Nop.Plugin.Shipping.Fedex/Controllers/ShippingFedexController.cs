@@ -87,7 +87,6 @@ namespace Nop.Plugin.Shipping.Fedex.Controllers
         }
 
         [HttpPost]
-        [AdminAntiForgery]
         public IActionResult Configure(FedexShippingModel model)
         {
             if (!_permissionService.Authorize(StandardPermissionProvider.ManageShippingSettings))

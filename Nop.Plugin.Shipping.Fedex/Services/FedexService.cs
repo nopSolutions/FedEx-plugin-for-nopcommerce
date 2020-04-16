@@ -8,6 +8,8 @@ using Nop.Core.Domain.Directory;
 using Nop.Core.Domain.Orders;
 using Nop.Core.Domain.Shipping;
 using Nop.Plugin.Shipping.Fedex.Domain;
+using Nop.Services.Catalog;
+using Nop.Services.Customers;
 using Nop.Services.Directory;
 using Nop.Services.Logging;
 using Nop.Services.Orders;
@@ -27,6 +29,9 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         private readonly IMeasureService _measureService;
         private readonly IOrderTotalCalculationService _orderTotalCalculationService;
         private readonly IShippingService _shippingService;
+        private readonly ICustomerService _customerService;
+        private readonly IProductService _productService;
+        private readonly IStateProvinceService _stateProvinceService;
         private readonly IWorkContext _workContext;
 
         #endregion
@@ -40,6 +45,9 @@ namespace Nop.Plugin.Shipping.Fedex.Services
             IMeasureService measureService,
             IOrderTotalCalculationService orderTotalCalculationService,
             IShippingService shippingService,
+            ICustomerService customerservice,
+            IProductService productService,
+            IStateProvinceService stateProvinceService,
             IWorkContext workContext)
         {
             _currencySettings = currencySettings;
@@ -49,6 +57,9 @@ namespace Nop.Plugin.Shipping.Fedex.Services
             _measureService = measureService;
             _orderTotalCalculationService = orderTotalCalculationService;
             _shippingService = shippingService;
+            _customerService = customerservice;
+            _productService = productService;
+            _stateProvinceService = stateProvinceService;
             _workContext = workContext;
         }
 
@@ -113,7 +124,8 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// <returns>Dimensions values</returns>
         private (decimal width, decimal length, decimal height) GetDimensionsForSingleItem(ShoppingCartItem item)
         {
-            var items = new[] { new GetShippingOptionRequest.PackageItem(item, 1) };
+            var product = _productService.GetProductById(item.ProductId);
+            var items = new[] { new GetShippingOptionRequest.PackageItem(item, product, 1) };
             return GetDimensions(items);
         }
 
@@ -140,10 +152,12 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// <returns>Weight value</returns>
         private decimal GetWeightForSingleItem(ShoppingCartItem item)
         {
+            var customer = _customerService.GetCustomerById(item.CustomerId);
+            var product = _productService.GetProductById(item.ProductId);
             var shippingOptionRequest = new GetShippingOptionRequest
             {
-                Customer = item.Customer,
-                Items = new[] { new GetShippingOptionRequest.PackageItem(item, 1) }
+                Customer = customer,
+                Items = new[] { new GetShippingOptionRequest.PackageItem(item, product, 1) }
             };
             return GetWeight(shippingOptionRequest);
         }
@@ -451,17 +465,18 @@ namespace Nop.Plugin.Shipping.Fedex.Services
             request.RequestedShipment.Recipient.Address.StreetLines = new[] { getShippingOptionRequest.ShippingAddress.Address1 };
             request.RequestedShipment.Recipient.Address.City = getShippingOptionRequest.ShippingAddress.City;
 
-            if (getShippingOptionRequest.ShippingAddress.StateProvince != null &&
-                IncludeStateProvinceCode(getShippingOptionRequest.ShippingAddress.Country.TwoLetterIsoCode))
+            if (getShippingOptionRequest.ShippingAddress.StateProvinceId.HasValue &&
+                IncludeStateProvinceCode(getShippingOptionRequest.CountryFrom.TwoLetterIsoCode))
             {
-                request.RequestedShipment.Recipient.Address.StateOrProvinceCode = getShippingOptionRequest.ShippingAddress.StateProvince.Abbreviation;
+                var stateProvince = _stateProvinceService.GetStateProvinceById(getShippingOptionRequest.ShippingAddress.StateProvinceId.Value);
+                request.RequestedShipment.Recipient.Address.StateOrProvinceCode = stateProvince.Abbreviation;
             }
             else
             {
                 request.RequestedShipment.Recipient.Address.StateOrProvinceCode = string.Empty;
             }
             request.RequestedShipment.Recipient.Address.PostalCode = getShippingOptionRequest.ShippingAddress.ZipPostalCode;
-            request.RequestedShipment.Recipient.Address.CountryCode = getShippingOptionRequest.ShippingAddress.Country.TwoLetterIsoCode;
+            request.RequestedShipment.Recipient.Address.CountryCode = getShippingOptionRequest.CountryFrom.TwoLetterIsoCode;
         }
 
         /// <summary>
@@ -646,11 +661,12 @@ namespace Nop.Plugin.Shipping.Fedex.Services
                 var (width, length, height) = GetDimensionsForSingleItem(packageItem.ShoppingCartItem);
                 var weight = GetWeightForSingleItem(packageItem.ShoppingCartItem);
 
-                var package = CreatePackage(width, length, height, weight, packageItem.ShoppingCartItem.Product.Price, (i + 1).ToString(), currencyCode);
+                var product = _productService.GetProductById(packageItem.ShoppingCartItem.ProductId);
+                var package = CreatePackage(width, length, height, weight, product.Price, (i + 1).ToString(), currencyCode);
                 package.GroupPackageCount = "1";
 
                 var packs = Enumerable.Range(i, packageItem.GetQuantity())
-                    .Select(j => CreatePackage(width, length, height, weight, packageItem.ShoppingCartItem.Product.Price, j.ToString(), currencyCode)).ToArray();
+                    .Select(j => CreatePackage(width, length, height, weight, product.Price, j.ToString(), currencyCode)).ToArray();
                 i += packageItem.GetQuantity();
 
                 return packs;
