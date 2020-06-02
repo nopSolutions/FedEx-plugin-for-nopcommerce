@@ -24,13 +24,14 @@ namespace Nop.Plugin.Shipping.Fedex.Services
 
         private readonly CurrencySettings _currencySettings;
         private readonly FedexSettings _fedexSettings;
+        private readonly ICountryService _countryService;
         private readonly ICurrencyService _currencyService;
+        private readonly ICustomerService _customerService;
         private readonly ILogger _logger;
         private readonly IMeasureService _measureService;
         private readonly IOrderTotalCalculationService _orderTotalCalculationService;
-        private readonly IShippingService _shippingService;
-        private readonly ICustomerService _customerService;
         private readonly IProductService _productService;
+        private readonly IShippingService _shippingService;
         private readonly IStateProvinceService _stateProvinceService;
         private readonly IWorkContext _workContext;
 
@@ -40,25 +41,27 @@ namespace Nop.Plugin.Shipping.Fedex.Services
 
         public FedexService(CurrencySettings currencySettings,
             FedexSettings fedexSettings,
+            ICountryService countryService,
             ICurrencyService currencyService,
+            ICustomerService customerservice,
             ILogger logger,
             IMeasureService measureService,
             IOrderTotalCalculationService orderTotalCalculationService,
-            IShippingService shippingService,
-            ICustomerService customerservice,
             IProductService productService,
+            IShippingService shippingService,
             IStateProvinceService stateProvinceService,
             IWorkContext workContext)
         {
             _currencySettings = currencySettings;
             _fedexSettings = fedexSettings;
+            _countryService = countryService;
             _currencyService = currencyService;
+            _customerService = customerservice;
             _logger = logger;
             _measureService = measureService;
             _orderTotalCalculationService = orderTotalCalculationService;
-            _shippingService = shippingService;
-            _customerService = customerservice;
             _productService = productService;
+            _shippingService = shippingService;
             _stateProvinceService = stateProvinceService;
             _workContext = workContext;
         }
@@ -81,8 +84,7 @@ namespace Nop.Plugin.Shipping.Fedex.Services
                 var amountCurrency = charge.Currency == requestedShipmentCurrency.CurrencyCode ? requestedShipmentCurrency : _currencyService.GetCurrencyByCode(charge.Currency);
 
                 //ensure the the currency exists; otherwise, presume that it was primary store currency
-                if (amountCurrency is null)
-                    amountCurrency = primaryStoreCurrency;
+                amountCurrency ??= primaryStoreCurrency;
 
                 amount = _currencyService.ConvertToPrimaryStoreCurrency(charge.Amount, amountCurrency);
 
@@ -100,7 +102,16 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         private (decimal width, decimal length, decimal height) GetDimensions(IList<GetShippingOptionRequest.PackageItem> items, int minRate = 1)
         {
             var measureDimension = _measureService.GetMeasureDimensionBySystemKeyword(FedexShippingDefaults.MEASURE_DIMENSION_SYSTEM_KEYWORD) ??
-                 throw new NopException($"FedEx shipping service. Could not load \"{FedexShippingDefaults.MEASURE_DIMENSION_SYSTEM_KEYWORD}\" measure dimension");
+                throw new NopException($"FedEx shipping service. Could not load \"{FedexShippingDefaults.MEASURE_DIMENSION_SYSTEM_KEYWORD}\" measure dimension");
+
+            _shippingService.GetDimensions(items, out var width, out var length, out var height, true);
+            width = convertAndRoundDimension(width);
+            length = convertAndRoundDimension(length);
+            height = convertAndRoundDimension(height);
+
+            return (width, length, height);
+
+            #region Local functions
 
             decimal convertAndRoundDimension(decimal dimension)
             {
@@ -109,12 +120,7 @@ namespace Nop.Plugin.Shipping.Fedex.Services
                 return Math.Max(dimension, minRate);
             }
 
-            _shippingService.GetDimensions(items, out var width, out var length, out var height, true);
-            width = convertAndRoundDimension(width);
-            length = convertAndRoundDimension(length);
-            height = convertAndRoundDimension(height);
-
-            return (width, length, height);
+            #endregion
         }
 
         /// <summary>
@@ -125,7 +131,9 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         private (decimal width, decimal length, decimal height) GetDimensionsForSingleItem(ShoppingCartItem item)
         {
             var product = _productService.GetProductById(item.ProductId);
+
             var items = new[] { new GetShippingOptionRequest.PackageItem(item, product, 1) };
+
             return GetDimensions(items);
         }
 
@@ -154,11 +162,13 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         {
             var customer = _customerService.GetCustomerById(item.CustomerId);
             var product = _productService.GetProductById(item.ProductId);
+
             var shippingOptionRequest = new GetShippingOptionRequest
             {
                 Customer = customer,
                 Items = new[] { new GetShippingOptionRequest.PackageItem(item, product, 1) }
             };
+
             return GetWeight(shippingOptionRequest);
         }
 
@@ -343,25 +353,8 @@ namespace Nop.Plugin.Shipping.Fedex.Services
             //The solution coded here might be considered a bit of a hack
             //it only supports the scenario for US / Canada / India shipping
             //because nopCommerce does not have a concept of a designated currency for a Country.
-            string originCurrencyCode;
-            if (originCountryCode == "US")
-                originCurrencyCode = "USD";
-            else if (originCountryCode == "CA")
-                originCurrencyCode = "CAD";
-            else if (originCountryCode == "IN")
-                originCurrencyCode = "INR";
-            else
-                originCurrencyCode = primaryStoreCurrency.CurrencyCode;
-
-            string destinCurrencyCode;
-            if (destinCountryCode == "US")
-                destinCurrencyCode = "USD";
-            else if (destinCountryCode == "CA")
-                destinCurrencyCode = "CAD";
-            else if (destinCountryCode == "IN")
-                destinCurrencyCode = "INR";
-            else
-                destinCurrencyCode = primaryStoreCurrency.CurrencyCode;
+            string originCurrencyCode = getCurrencyCode(originCountryCode);
+            string destinCurrencyCode = getCurrencyCode(destinCountryCode);
 
             //when neither the shipping origin's currency or the destinations currency is the same as the store primary currency,
             //FedEx would complain that "There are no valid services available. (code: 556)".
@@ -372,6 +365,21 @@ namespace Nop.Plugin.Shipping.Fedex.Services
 
             //ensure that this currency exists
             return _currencyService.GetCurrencyByCode(originCurrencyCode) ?? primaryStoreCurrency;
+
+            #region Local functions
+
+            string getCurrencyCode(string countryCode)
+            {
+                return countryCode switch 
+                {
+                    "US" => "USD",
+                    "CA" => "CAD",
+                    "IN" => "INR",
+                    _ => primaryStoreCurrency.CurrencyCode
+                };
+            }
+
+            #endregion
         }
 
         private bool IsPackageTooHeavy(decimal weight)
@@ -465,10 +473,11 @@ namespace Nop.Plugin.Shipping.Fedex.Services
             request.RequestedShipment.Recipient.Address.StreetLines = new[] { getShippingOptionRequest.ShippingAddress.Address1 };
             request.RequestedShipment.Recipient.Address.City = getShippingOptionRequest.ShippingAddress.City;
 
-            if (getShippingOptionRequest.ShippingAddress.StateProvinceId.HasValue &&
-                IncludeStateProvinceCode(getShippingOptionRequest.CountryFrom.TwoLetterIsoCode))
+            var recipientCountryCode = _countryService.GetCountryByAddress(getShippingOptionRequest.ShippingAddress)?.TwoLetterIsoCode ?? string.Empty;
+
+            if (_stateProvinceService.GetStateProvinceByAddress(getShippingOptionRequest.ShippingAddress) is StateProvince stateProvince &&
+                IncludeStateProvinceCode(recipientCountryCode))
             {
-                var stateProvince = _stateProvinceService.GetStateProvinceById(getShippingOptionRequest.ShippingAddress.StateProvinceId.Value);
                 request.RequestedShipment.Recipient.Address.StateOrProvinceCode = stateProvince.Abbreviation;
             }
             else
@@ -476,7 +485,7 @@ namespace Nop.Plugin.Shipping.Fedex.Services
                 request.RequestedShipment.Recipient.Address.StateOrProvinceCode = string.Empty;
             }
             request.RequestedShipment.Recipient.Address.PostalCode = getShippingOptionRequest.ShippingAddress.ZipPostalCode;
-            request.RequestedShipment.Recipient.Address.CountryCode = getShippingOptionRequest.CountryFrom.TwoLetterIsoCode;
+            request.RequestedShipment.Recipient.Address.CountryCode = recipientCountryCode;
         }
 
         /// <summary>
@@ -687,7 +696,7 @@ namespace Nop.Plugin.Shipping.Fedex.Services
             request.RequestedShipment.Shipper.Address.City = getShippingOptionRequest.CityFrom;
             if (IncludeStateProvinceCode(getShippingOptionRequest.CountryFrom.TwoLetterIsoCode))
             {
-                var stateProvinceAbbreviation = getShippingOptionRequest.StateProvinceFrom is null ? "" : getShippingOptionRequest.StateProvinceFrom.Abbreviation;
+                var stateProvinceAbbreviation = getShippingOptionRequest.StateProvinceFrom?.Abbreviation ?? "";
                 request.RequestedShipment.Shipper.Address.StateOrProvinceCode = stateProvinceAbbreviation;
             }
             request.RequestedShipment.Shipper.Address.PostalCode = getShippingOptionRequest.ZipPostalCodeFrom;
@@ -713,27 +722,16 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         private void SetShipmentDetails(FedexRate.RateRequest request, decimal orderSubTotal, string currencyCode)
         {
             //set drop off type
-            switch (_fedexSettings.DropoffType)
+            request.RequestedShipment.DropoffType = _fedexSettings.DropoffType switch
             {
-                case DropoffType.BusinessServiceCenter:
-                    request.RequestedShipment.DropoffType = FedexRate.DropoffType.BUSINESS_SERVICE_CENTER;
-                    break;
-                case DropoffType.DropBox:
-                    request.RequestedShipment.DropoffType = FedexRate.DropoffType.DROP_BOX;
-                    break;
-                case DropoffType.RegularPickup:
-                    request.RequestedShipment.DropoffType = FedexRate.DropoffType.REGULAR_PICKUP;
-                    break;
-                case DropoffType.RequestCourier:
-                    request.RequestedShipment.DropoffType = FedexRate.DropoffType.REQUEST_COURIER;
-                    break;
-                case DropoffType.Station:
-                    request.RequestedShipment.DropoffType = FedexRate.DropoffType.STATION;
-                    break;
-                default:
-                    request.RequestedShipment.DropoffType = FedexRate.DropoffType.BUSINESS_SERVICE_CENTER;
-                    break;
-            }
+                DropoffType.BusinessServiceCenter => FedexRate.DropoffType.BUSINESS_SERVICE_CENTER,
+                DropoffType.DropBox => FedexRate.DropoffType.DROP_BOX,
+                DropoffType.RegularPickup => FedexRate.DropoffType.REGULAR_PICKUP,
+                DropoffType.RequestCourier => FedexRate.DropoffType.REQUEST_COURIER,
+                DropoffType.Station => FedexRate.DropoffType.STATION,
+                _ => FedexRate.DropoffType.BUSINESS_SERVICE_CENTER
+            };
+            
             request.RequestedShipment.TotalInsuredValue = new FedexRate.Money
             {
                 Amount = orderSubTotal,

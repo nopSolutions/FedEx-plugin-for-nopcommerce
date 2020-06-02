@@ -46,55 +46,33 @@ namespace Nop.Plugin.Shipping.Fedex.Domain
         /// </summary>
         /// <param name="serviceId">ID of the carrier service -from FedEx</param>
         /// <returns>String representation of the carrier service</returns>
-        public static string GetServiceName(string serviceId)
+        public static string GetServiceName(string serviceId) 
         {
-            switch (serviceId)
+            return serviceId switch
             {
-                case "EUROPE_FIRST_INTERNATIONAL_PRIORITY":
-                    return "FedEx Europe First International Priority";
-                case "FEDEX_1_DAY_FREIGHT":
-                    return "FedEx 1Day Freight";
-                case "FEDEX_2_DAY":
-                    return "FedEx 2Day";
-                case "FEDEX_2_DAY_FREIGHT":
-                    return "FedEx 2Day Freight";
-                case "FEDEX_3_DAY_FREIGHT":
-                    return "FedEx 3Day Freight";
-                case "FEDEX_EXPRESS_SAVER":
-                    return "FedEx Express Saver";
-                case "FEDEX_GROUND":
-                    return "FedEx Ground";
-                case "FIRST_OVERNIGHT":
-                    return "FedEx First Overnight";
-                case "GROUND_HOME_DELIVERY":
-                    return "FedEx Ground Home Delivery";
-                case "INTERNATIONAL_DISTRIBUTION_FREIGHT":
-                    return "FedEx International Distribution Freight";
-                case "INTERNATIONAL_ECONOMY":
-                    return "FedEx International Economy";
-                case "INTERNATIONAL_ECONOMY_DISTRIBUTION":
-                    return "FedEx International Economy Distribution";
-                case "INTERNATIONAL_ECONOMY_FREIGHT":
-                    return "FedEx International Economy Freight";
-                case "INTERNATIONAL_FIRST":
-                    return "FedEx International First";
-                case "INTERNATIONAL_PRIORITY":
-                    return "FedEx International Priority";
-                case "INTERNATIONAL_PRIORITY_FREIGHT":
-                    return "FedEx International Priority Freight";
-                case "PRIORITY_OVERNIGHT":
-                    return "FedEx Priority Overnight";
-                case "SMART_POST":
-                    return "FedEx Smart Post";
-                case "STANDARD_OVERNIGHT":
-                    return "FedEx Standard Overnight";
-                case "FEDEX_FREIGHT":
-                    return "FedEx Freight";
-                case "FEDEX_NATIONAL_FREIGHT":
-                    return "FedEx National Freight";
-                default:
-                    return "UNKNOWN";
-            }
+                "EUROPE_FIRST_INTERNATIONAL_PRIORITY" => "FedEx Europe First International Priority",
+                "FEDEX_1_DAY_FREIGHT" => "FedEx 1Day Freight",
+                "FEDEX_2_DAY" => "FedEx 2Day",
+                "FEDEX_2_DAY_FREIGHT" => "FedEx 2Day Freight",
+                "FEDEX_3_DAY_FREIGHT" =>"FedEx 3Day Freight",
+                "FEDEX_EXPRESS_SAVER" => "FedEx Express Saver",
+                "FEDEX_GROUND" => "FedEx Ground",
+                "FIRST_OVERNIGHT" => "FedEx First Overnight",
+                "GROUND_HOME_DELIVERY" => "FedEx Ground Home Delivery",
+                "INTERNATIONAL_DISTRIBUTION_FREIGHT" => "FedEx International Distribution Freight",
+                "INTERNATIONAL_ECONOMY" => "FedEx International Economy",
+                "INTERNATIONAL_ECONOMY_DISTRIBUTION" => "FedEx International Economy Distribution",
+                "INTERNATIONAL_ECONOMY_FREIGHT" => "FedEx International Economy Freight",
+                "INTERNATIONAL_FIRST" => "FedEx International First",
+                "INTERNATIONAL_PRIORITY" => "FedEx International Priority",
+                "INTERNATIONAL_PRIORITY_FREIGHT" => "FedEx International Priority Freight",
+                "PRIORITY_OVERNIGHT" => "FedEx Priority Overnight",
+                "SMART_POST" => "FedEx Smart Post",
+                "STANDARD_OVERNIGHT" => "FedEx Standard Overnight",
+                "FEDEX_FREIGHT" => "FedEx Freight",
+                "FEDEX_NATIONAL_FREIGHT" => "FedEx National Freight",
+                _ => "UNKNOWN"
+            };
         }
 
         /// <summary>
@@ -104,54 +82,33 @@ namespace Nop.Plugin.Shipping.Fedex.Domain
         /// <returns>Service ID as used by FedEx</returns>
         public static string GetServiceId(string serviceName)
         {
-            switch (serviceName)
+            return serviceName switch
             {
-                case "FedEx Europe First International Priority":
-                    return "EUROPE_FIRST_INTERNATIONAL_PRIORITY";
-                case "FedEx 1Day Freight":
-                    return "FEDEX_1_DAY_FREIGHT";
-                case "FedEx 2Day":
-                    return "FEDEX_2_DAY";
-                case "FedEx 2Day Freight":
-                    return "FEDEX_2_DAY_FREIGHT";
-                case "FedEx 3Day Freight":
-                    return "FEDEX_3_DAY_FREIGHT";
-                case "FedEx Express Saver":
-                    return "FEDEX_EXPRESS_SAVER";
-                case "FedEx Ground":
-                    return "FEDEX_GROUND";
-                case "FedEx First Overnight":
-                    return "FIRST_OVERNIGHT";
-                case "FedEx Ground Home Delivery":
-                    return "GROUND_HOME_DELIVERY";
-                case "FedEx International Distribution Freight":
-                    return "INTERNATIONAL_DISTRIBUTION_FREIGHT";
-                case "FedEx International Economy":
-                    return "INTERNATIONAL_ECONOMY";
-                case "FedEx International Economy Distribution":
-                    return "INTERNATIONAL_ECONOMY_DISTRIBUTION";
-                case "FedEx International Economy Freight":
-                    return "INTERNATIONAL_ECONOMY_FREIGHT";
-                case "FedEx International First":
-                    return "INTERNATIONAL_FIRST";
-                case "FedEx International Priority":
-                    return "INTERNATIONAL_PRIORITY";
-                case "FedEx International Priority Freight":
-                    return "INTERNATIONAL_PRIORITY_FREIGHT";
-                case "FedEx Priority Overnight":
-                    return "PRIORITY_OVERNIGHT";
-                case "FedEx Smart Post":
-                    return "SMART_POST";
-                case "FedEx Standard Overnight":
-                    return "STANDARD_OVERNIGHT";
-                case "FedEx Freight":
-                    return "FEDEX_FREIGHT";
-                case "FedEx National Freight":
-                    return "FEDEX_NATIONAL_FREIGHT";
-                default:
-                    return "UNKNOWN";
-            }
+                "FedEx Europe First International Priority" => "EUROPE_FIRST_INTERNATIONAL_PRIORITY",
+                "FedEx 1Day Freight" => "FEDEX_1_DAY_FREIGHT",
+                "FedEx 2Day" => "FEDEX_2_DAY",
+                "FedEx 2Day Freight" => "FEDEX_2_DAY_FREIGHT",
+                "FedEx 3Day Freight" => "FEDEX_3_DAY_FREIGHT",
+                "FedEx Express Saver" => "FEDEX_EXPRESS_SAVER",
+                "FedEx Ground" => "FEDEX_GROUND",
+                "FedEx First Overnight" => "FIRST_OVERNIGHT",
+                "FedEx Ground Home Delivery" => "GROUND_HOME_DELIVERY",
+                "FedEx International Distribution Freight" => "INTERNATIONAL_DISTRIBUTION_FREIGHT",
+                "FedEx International Economy" => "INTERNATIONAL_ECONOMY",
+                "FedEx International Economy Distribution" => "INTERNATIONAL_ECONOMY_DISTRIBUTION",
+                "FedEx International Economy Freight" => "INTERNATIONAL_ECONOMY_FREIGHT",
+                "FedEx International First" => "INTERNATIONAL_FIRST",
+                "FedEx International Priority" => "INTERNATIONAL_PRIORITY",
+                "FedEx International Priority Freight" => "INTERNATIONAL_PRIORITY_FREIGHT",
+                "FedEx Priority Overnight" => "PRIORITY_OVERNIGHT",
+                "FedEx Smart Post" => "SMART_POST",
+                "FedEx Standard Overnight" => "STANDARD_OVERNIGHT",
+                "FedEx Freight" => "FEDEX_FREIGHT",
+                "FedEx National Freight" => "FEDEX_NATIONAL_FREIGHT",
+                _ => "UNKNOWN"
+            };
         }
+
         #endregion
 
     }

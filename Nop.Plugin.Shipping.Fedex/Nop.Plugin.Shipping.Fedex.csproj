@@ -6,7 +6,7 @@
     <Company>Nop Solutions, Ltd</Company> 
     <Authors>Nop Solutions, Ltd</Authors>
     <PackageLicenseUrl></PackageLicenseUrl> 
-    <PackageProjectUrl>https://www.nopcommerce.com/p/3326/shipping-plugin-for-fedex-nopcommerce-team.aspx</PackageProjectUrl> 
+    <PackageProjectUrl>https://www.nopcommerce.com/shipping-plugin-for-fedex</PackageProjectUrl> 
     <RepositoryUrl>https://github.com/nopSolutions/FedEx-plugin-for-nopcommerce</RepositoryUrl>
     <RepositoryType>Git</RepositoryType>
     <OutputPath>..\..\Presentation\Nop.Web\Plugins\Shipping.Fedex</OutputPath>
