@@ -353,8 +353,8 @@ namespace Nop.Plugin.Shipping.Fedex.Services
             //The solution coded here might be considered a bit of a hack
             //it only supports the scenario for US / Canada / India shipping
             //because nopCommerce does not have a concept of a designated currency for a Country.
-            string originCurrencyCode = getCurrencyCode(originCountryCode);
-            string destinCurrencyCode = getCurrencyCode(destinCountryCode);
+            var originCurrencyCode = getCurrencyCode(originCountryCode);
+            var destinCurrencyCode = getCurrencyCode(destinCountryCode);
 
             //when neither the shipping origin's currency or the destinations currency is the same as the store primary currency,
             //FedEx would complain that "There are no valid services available. (code: 556)".
@@ -370,7 +370,7 @@ namespace Nop.Plugin.Shipping.Fedex.Services
 
             string getCurrencyCode(string countryCode)
             {
-                return countryCode switch 
+                return countryCode switch
                 {
                     "US" => "USD",
                     "CA" => "CAD",
@@ -731,7 +731,7 @@ namespace Nop.Plugin.Shipping.Fedex.Services
                 DropoffType.Station => FedexRate.DropoffType.STATION,
                 _ => FedexRate.DropoffType.BUSINESS_SERVICE_CENTER
             };
-            
+
             request.RequestedShipment.TotalInsuredValue = new FedexRate.Money
             {
                 Amount = orderSubTotal,
@@ -796,12 +796,10 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         private async Task<FedexTracking.TrackReply> TrackAsync(FedexTracking.TrackRequest request)
         {
             //initialize the service
-            using (var service = new FedexTracking.TrackPortTypeClient(FedexTracking.TrackPortTypeClient.EndpointConfiguration.TrackServicePort, _fedexSettings.Url))
-            {
-                var trackResponse = await service.trackAsync(request);
+            using var service = new FedexTracking.TrackPortTypeClient(FedexTracking.TrackPortTypeClient.EndpointConfiguration.TrackServicePort, _fedexSettings.Url);
+            var trackResponse = await service.trackAsync(request);
 
-                return trackResponse.TrackReply;
-            }
+            return trackResponse.TrackReply;
         }
 
         #endregion

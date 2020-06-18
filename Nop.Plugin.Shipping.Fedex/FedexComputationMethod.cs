@@ -56,8 +56,6 @@ namespace Nop.Plugin.Shipping.Fedex
             if (getShippingOptionRequest is null)
                 throw new ArgumentNullException(nameof(getShippingOptionRequest));
 
-            var response = new GetShippingOptionResponse();
-
             if (!getShippingOptionRequest.Items?.Any() ?? true)
                 return new GetShippingOptionResponse { Errors = new[] { "No shipment items" } };
 
@@ -132,11 +130,11 @@ namespace Nop.Plugin.Shipping.Fedex
                 ["Enums.Nop.Plugin.Shipping.Fedex.DropoffType.DropBox"] = "Drop box",
                 ["Enums.Nop.Plugin.Shipping.Fedex.DropoffType.RegularPickup"] = "Regular pickup",
                 ["Enums.Nop.Plugin.Shipping.Fedex.DropoffType.RequestCourier"] = "Request courier",
-                ["Enums.Nop.Plugin.Shipping.Fedex.DropoffType.Station"] = "Station",                
+                ["Enums.Nop.Plugin.Shipping.Fedex.DropoffType.Station"] = "Station",
                 ["Enums.Nop.Plugin.Shipping.Fedex.PackingType.PackByDimensions"] = "Pack by dimensions",
                 ["Enums.Nop.Plugin.Shipping.Fedex.PackingType.PackByOneItemPerPackage"] = "Pack by one item per package",
                 ["Enums.Nop.Plugin.Shipping.Fedex.PackingType.PackByVolume"] = "Pack by volume"
-            });            
+            });
 
             base.Install();
         }

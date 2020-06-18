@@ -46,7 +46,7 @@ namespace Nop.Plugin.Shipping.Fedex.Domain
         /// </summary>
         /// <param name="serviceId">ID of the carrier service -from FedEx</param>
         /// <returns>String representation of the carrier service</returns>
-        public static string GetServiceName(string serviceId) 
+        public static string GetServiceName(string serviceId)
         {
             return serviceId switch
             {
@@ -54,7 +54,7 @@ namespace Nop.Plugin.Shipping.Fedex.Domain
                 "FEDEX_1_DAY_FREIGHT" => "FedEx 1Day Freight",
                 "FEDEX_2_DAY" => "FedEx 2Day",
                 "FEDEX_2_DAY_FREIGHT" => "FedEx 2Day Freight",
-                "FEDEX_3_DAY_FREIGHT" =>"FedEx 3Day Freight",
+                "FEDEX_3_DAY_FREIGHT" => "FedEx 3Day Freight",
                 "FEDEX_EXPRESS_SAVER" => "FedEx Express Saver",
                 "FEDEX_GROUND" => "FedEx Ground",
                 "FIRST_OVERNIGHT" => "FedEx First Overnight",
