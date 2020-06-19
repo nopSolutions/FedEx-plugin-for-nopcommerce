@@ -14,8 +14,9 @@ using Nop.Web.Framework.Mvc.Filters;
 
 namespace Nop.Plugin.Shipping.Fedex.Controllers
 {
-    [AuthorizeAdmin]
     [Area(AreaNames.Admin)]
+    [AuthorizeAdmin]
+    [AutoValidateAntiforgeryToken]
     public class ShippingFedexController : BasePluginController
     {
         #region Fields
