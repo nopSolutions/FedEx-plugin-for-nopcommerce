@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Threading.Tasks;
 using Nop.Plugin.Shipping.Fedex.Services;
 using Nop.Services.Shipping.Tracking;
 
@@ -28,13 +29,13 @@ namespace Nop.Plugin.Shipping.Fedex
         /// </summary>
         /// <param name="trackingNumber">The tracking number to track.</param>
         /// <returns>True if the tracker can track, otherwise false.</returns>
-        public virtual bool IsMatch(string trackingNumber)
+        public virtual Task<bool> IsMatchAsync(string trackingNumber)
         {
             if (string.IsNullOrWhiteSpace(trackingNumber))
-                return false;
+                return Task.FromResult(false);
 
             //What is a FedEx tracking number format?
-            return false;
+            return Task.FromResult(false);
         }
 
         /// <summary>
@@ -42,9 +43,9 @@ namespace Nop.Plugin.Shipping.Fedex
         /// </summary>
         /// <param name="trackingNumber">The tracking number to track.</param>
         /// <returns>URL of a tracking page.</returns>
-        public virtual string GetUrl(string trackingNumber)
+        public virtual Task<string> GetUrlAsync(string trackingNumber)
         {
-            return $"https://www.fedex.com/apps/fedextrack/?action=track&tracknumbers={trackingNumber}";
+            return Task.FromResult($"https://www.fedex.com/apps/fedextrack/?action=track&tracknumbers={trackingNumber}");
         }
 
         /// <summary>
@@ -52,12 +53,12 @@ namespace Nop.Plugin.Shipping.Fedex
         /// </summary>
         /// <param name="trackingNumber">The tracking number to track</param>
         /// <returns>List of Shipment Events.</returns>
-        public virtual IList<ShipmentStatusEvent> GetShipmentEvents(string trackingNumber)
+        public virtual async Task<IList<ShipmentStatusEvent>> GetShipmentEventsAsync(string trackingNumber)
         {
             if (string.IsNullOrEmpty(trackingNumber))
                 return new List<ShipmentStatusEvent>();
 
-            return _fedexService.GetShipmentEvents(trackingNumber);
+            return await _fedexService.GetShipmentEventsAsync(trackingNumber);
         }
 
         #endregion

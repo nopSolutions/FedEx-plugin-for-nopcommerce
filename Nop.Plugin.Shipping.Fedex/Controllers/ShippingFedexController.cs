@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Text;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Nop.Plugin.Shipping.Fedex.Domain;
 using Nop.Plugin.Shipping.Fedex.Models;
@@ -48,9 +49,9 @@ namespace Nop.Plugin.Shipping.Fedex.Controllers
 
         #region Methods
 
-        public IActionResult Configure()
+        public async Task<IActionResult> Configure()
         {
-            if (!_permissionService.Authorize(StandardPermissionProvider.ManageShippingSettings))
+            if (!await _permissionService.AuthorizeAsync(StandardPermissionProvider.ManageShippingSettings))
                 return AccessDeniedView();
 
             var model = new FedexShippingModel()
@@ -61,13 +62,13 @@ namespace Nop.Plugin.Shipping.Fedex.Controllers
                 AccountNumber = _fedexSettings.AccountNumber,
                 MeterNumber = _fedexSettings.MeterNumber,
                 DropoffType = Convert.ToInt32(_fedexSettings.DropoffType),
-                AvailableDropOffTypes = _fedexSettings.DropoffType.ToSelectList(),
+                AvailableDropOffTypes = await _fedexSettings.DropoffType.ToSelectListAsync(),
                 UseResidentialRates = _fedexSettings.UseResidentialRates,
                 ApplyDiscounts = _fedexSettings.ApplyDiscounts,
                 AdditionalHandlingCharge = _fedexSettings.AdditionalHandlingCharge,
                 PackingPackageVolume = _fedexSettings.PackingPackageVolume,
                 PackingType = Convert.ToInt32(_fedexSettings.PackingType),
-                PackingTypeValues = _fedexSettings.PackingType.ToSelectList(),
+                PackingTypeValues = await _fedexSettings.PackingType.ToSelectListAsync(),
                 PassDimensions = _fedexSettings.PassDimensions
             };
 
@@ -88,13 +89,13 @@ namespace Nop.Plugin.Shipping.Fedex.Controllers
         }
 
         [HttpPost]
-        public IActionResult Configure(FedexShippingModel model)
+        public async Task<IActionResult> Configure(FedexShippingModel model)
         {
-            if (!_permissionService.Authorize(StandardPermissionProvider.ManageShippingSettings))
+            if (!await _permissionService.AuthorizeAsync(StandardPermissionProvider.ManageShippingSettings))
                 return AccessDeniedView();
 
             if (!ModelState.IsValid)
-                return Configure();
+                return await Configure();
 
             //save settings
             _fedexSettings.Url = model.Url;
@@ -129,11 +130,11 @@ namespace Nop.Plugin.Shipping.Fedex.Controllers
             else
                 _fedexSettings.CarrierServicesOffered = carrierServicesOfferedDomestic.ToString();
 
-            _settingService.SaveSetting(_fedexSettings);
+            await _settingService.SaveSettingAsync(_fedexSettings);
 
-            _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Plugins.Saved"));
+            _notificationService.SuccessNotification(await _localizationService.GetResourceAsync("Admin.Plugins.Saved"));
 
-            return Configure();
+            return await Configure();
         }
 
         #endregion

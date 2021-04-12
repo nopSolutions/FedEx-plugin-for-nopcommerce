@@ -5,7 +5,7 @@ using Nop.Web.Framework.Mvc.ModelBinding;
 
 namespace Nop.Plugin.Shipping.Fedex.Models
 {
-    public class FedexShippingModel : BaseNopModel
+    public record FedexShippingModel : BaseNopModel
     {
         public FedexShippingModel()
         {

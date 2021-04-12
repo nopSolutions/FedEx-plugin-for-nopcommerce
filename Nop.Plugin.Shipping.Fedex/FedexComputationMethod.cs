@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Nop.Core;
 using Nop.Plugin.Shipping.Fedex.Services;
 using Nop.Services.Configuration;
@@ -51,7 +52,7 @@ namespace Nop.Plugin.Shipping.Fedex
         /// </summary>
         /// <param name="getShippingOptionRequest">A request for getting shipping options</param>
         /// <returns>Represents a response of getting shipping rate options</returns>
-        public GetShippingOptionResponse GetShippingOptions(GetShippingOptionRequest getShippingOptionRequest)
+        public async Task<GetShippingOptionResponse> GetShippingOptionsAsync(GetShippingOptionRequest getShippingOptionRequest)
         {
             if (getShippingOptionRequest is null)
                 throw new ArgumentNullException(nameof(getShippingOptionRequest));
@@ -62,7 +63,7 @@ namespace Nop.Plugin.Shipping.Fedex
             if (getShippingOptionRequest.ShippingAddress?.CountryId is null)
                 return new GetShippingOptionResponse { Errors = new[] { "Shipping address is not set" } };
 
-            return _fedexService.GetRates(getShippingOptionRequest);
+            return await _fedexService.GetRatesAsync(getShippingOptionRequest);
         }
 
         /// <summary>
@@ -70,9 +71,9 @@ namespace Nop.Plugin.Shipping.Fedex
         /// </summary>
         /// <param name="getShippingOptionRequest">A request for getting shipping options</param>
         /// <returns>Fixed shipping rate; or null in case there's no fixed shipping rate</returns>
-        public decimal? GetFixedRate(GetShippingOptionRequest getShippingOptionRequest)
+        public Task<decimal?> GetFixedRateAsync(GetShippingOptionRequest getShippingOptionRequest)
         {
-            return null;
+            return Task.FromResult<decimal?>(null);
         }
 
         /// <summary>
@@ -86,7 +87,7 @@ namespace Nop.Plugin.Shipping.Fedex
         /// <summary>
         /// Install plugin
         /// </summary>
-        public override void Install()
+        public override async Task InstallAsync()
         {
             //settings
             var settings = new FedexSettings
@@ -95,10 +96,10 @@ namespace Nop.Plugin.Shipping.Fedex
                 DropoffType = DropoffType.BusinessServiceCenter,
                 PackingPackageVolume = 5184
             };
-            _settingService.SaveSetting(settings);
+            await _settingService.SaveSettingAsync(settings);
 
             //locales
-            _localizationService.AddPluginLocaleResource(new Dictionary<string, string>
+            await _localizationService.AddLocaleResourceAsync(new Dictionary<string, string>
             {
                 ["Plugins.Shipping.Fedex.Fields.Url"] = "URL",
                 ["Plugins.Shipping.Fedex.Fields.Url.Hint"] = "Specify FedEx URL.",
@@ -136,32 +137,27 @@ namespace Nop.Plugin.Shipping.Fedex
                 ["Enums.Nop.Plugin.Shipping.Fedex.PackingType.PackByVolume"] = "Pack by volume"
             });
 
-            base.Install();
+            await base.InstallAsync();
         }
 
         /// <summary>
         /// Uninstall plugin
         /// </summary>
-        public override void Uninstall()
+        public override async Task UninstallAsync()
         {
             //settings
-            _settingService.DeleteSetting<FedexSettings>();
+            await _settingService.DeleteSettingAsync<FedexSettings>();
 
             //locales
-            _localizationService.DeletePluginLocaleResources("Plugins.Shipping.Fedex.Fields");
-            _localizationService.DeletePluginLocaleResources("Enums.Nop.Plugin.Shipping.Fedex");
+            await _localizationService.DeleteLocaleResourcesAsync("Plugins.Shipping.Fedex.Fields");
+            await _localizationService.DeleteLocaleResourcesAsync("Enums.Nop.Plugin.Shipping.Fedex");
 
-            base.Uninstall();
+            await base.UninstallAsync();
         }
 
         #endregion
 
         #region Properties
-
-        /// <summary>
-        /// Gets a shipping rate computation method type
-        /// </summary>
-        public ShippingRateComputationMethodType ShippingRateComputationMethodType => ShippingRateComputationMethodType.Realtime;
 
         /// <summary>
         /// Gets a shipment tracker

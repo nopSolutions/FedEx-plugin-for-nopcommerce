@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
+using FedexRate;
 using Nop.Core;
 using Nop.Core.Domain.Directory;
 using Nop.Core.Domain.Orders;
@@ -43,7 +44,7 @@ namespace Nop.Plugin.Shipping.Fedex.Services
             FedexSettings fedexSettings,
             ICountryService countryService,
             ICurrencyService currencyService,
-            ICustomerService customerservice,
+            ICustomerService customerService,
             ILogger logger,
             IMeasureService measureService,
             IOrderTotalCalculationService orderTotalCalculationService,
@@ -56,7 +57,7 @@ namespace Nop.Plugin.Shipping.Fedex.Services
             _fedexSettings = fedexSettings;
             _countryService = countryService;
             _currencyService = currencyService;
-            _customerService = customerservice;
+            _customerService = customerService;
             _logger = logger;
             _measureService = measureService;
             _orderTotalCalculationService = orderTotalCalculationService;
@@ -70,23 +71,21 @@ namespace Nop.Plugin.Shipping.Fedex.Services
 
         #region Utilities
 
-        private decimal ConvertChargeToPrimaryCurrency(FedexRate.Money charge, Currency requestedShipmentCurrency)
+        private async Task<decimal> ConvertChargeToPrimaryCurrencyAsync(Money charge, Currency requestedShipmentCurrency)
         {
             decimal amount;
-            var primaryStoreCurrency = _currencyService.GetCurrencyById(_currencySettings.PrimaryStoreCurrencyId);
+            var primaryStoreCurrency = await _currencyService.GetCurrencyByIdAsync(_currencySettings.PrimaryStoreCurrencyId);
 
             if (primaryStoreCurrency.CurrencyCode.Equals(charge.Currency, StringComparison.InvariantCultureIgnoreCase))
-            {
                 amount = charge.Amount;
-            }
             else
             {
-                var amountCurrency = charge.Currency == requestedShipmentCurrency.CurrencyCode ? requestedShipmentCurrency : _currencyService.GetCurrencyByCode(charge.Currency);
+                var amountCurrency = charge.Currency == requestedShipmentCurrency.CurrencyCode ? requestedShipmentCurrency : await _currencyService.GetCurrencyByCodeAsync(charge.Currency);
 
                 //ensure the the currency exists; otherwise, presume that it was primary store currency
                 amountCurrency ??= primaryStoreCurrency;
 
-                amount = _currencyService.ConvertToPrimaryStoreCurrency(charge.Amount, amountCurrency);
+                amount = await _currencyService.ConvertToPrimaryStoreCurrencyAsync(charge.Amount, amountCurrency);
 
                 Debug.WriteLine($"ConvertChargeToPrimaryCurrency - from {charge.Amount} ({charge.Currency}) to {amount} ({primaryStoreCurrency.CurrencyCode})");
             }
@@ -98,24 +97,25 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// Get dimensions values of the package
         /// </summary>
         /// <param name="items">Package items</param>
+        /// <param name="minRate">Minimal rate</param>
         /// <returns>Dimensions values</returns>
-        private (decimal width, decimal length, decimal height) GetDimensions(IList<GetShippingOptionRequest.PackageItem> items, int minRate = 1)
+        private async Task<(decimal width, decimal length, decimal height)> GetDimensionsAsync(IList<GetShippingOptionRequest.PackageItem> items, int minRate = 1)
         {
-            var measureDimension = _measureService.GetMeasureDimensionBySystemKeyword(FedexShippingDefaults.MEASURE_DIMENSION_SYSTEM_KEYWORD) ??
+            var measureDimension = await _measureService.GetMeasureDimensionBySystemKeywordAsync(FedexShippingDefaults.MEASURE_DIMENSION_SYSTEM_KEYWORD) ??
                 throw new NopException($"FedEx shipping service. Could not load \"{FedexShippingDefaults.MEASURE_DIMENSION_SYSTEM_KEYWORD}\" measure dimension");
 
-            _shippingService.GetDimensions(items, out var width, out var length, out var height, true);
-            width = convertAndRoundDimension(width);
-            length = convertAndRoundDimension(length);
-            height = convertAndRoundDimension(height);
+            var (width,  length,  height) = await _shippingService.GetDimensionsAsync(items, true);
+            width = await convertAndRoundDimensionAsync(width);
+            length = await convertAndRoundDimensionAsync(length);
+            height = await convertAndRoundDimensionAsync(height);
 
             return (width, length, height);
 
             #region Local functions
 
-            decimal convertAndRoundDimension(decimal dimension)
+            async Task<decimal> convertAndRoundDimensionAsync(decimal dimension)
             {
-                dimension = _measureService.ConvertFromPrimaryMeasureDimension(dimension, measureDimension);
+                dimension = await _measureService.ConvertFromPrimaryMeasureDimensionAsync(dimension, measureDimension);
                 dimension = Convert.ToInt32(Math.Ceiling(dimension));
                 return Math.Max(dimension, minRate);
             }
@@ -128,27 +128,28 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// </summary>
         /// <param name="item">Shopping cart item</param>
         /// <returns>Dimensions values</returns>
-        private (decimal width, decimal length, decimal height) GetDimensionsForSingleItem(ShoppingCartItem item)
+        private async Task<(decimal width, decimal length, decimal height)> GetDimensionsForSingleItemAsync(ShoppingCartItem item)
         {
-            var product = _productService.GetProductById(item.ProductId);
+            var product = await _productService.GetProductByIdAsync(item.ProductId);
 
             var items = new[] { new GetShippingOptionRequest.PackageItem(item, product, 1) };
 
-            return GetDimensions(items);
+            return await GetDimensionsAsync(items);
         }
 
         /// <summary>
         /// Get weight value of the package
         /// </summary>
         /// <param name="shippingOptionRequest">Shipping option request</param>
+        /// <param name="minRate">Minimal rate</param>
         /// <returns>Weight value</returns>
-        private decimal GetWeight(GetShippingOptionRequest shippingOptionRequest, int minRate = 1)
+        private async Task<decimal> GetWeightAsync(GetShippingOptionRequest shippingOptionRequest, int minRate = 1)
         {
-            var measureWeight = _measureService.GetMeasureWeightBySystemKeyword(FedexShippingDefaults.MEASURE_WEIGHT_SYSTEM_KEYWORD) ??
+            var measureWeight = await _measureService.GetMeasureWeightBySystemKeywordAsync(FedexShippingDefaults.MEASURE_WEIGHT_SYSTEM_KEYWORD) ??
                 throw new NopException($"FedEx shipping service. Could not load \"{FedexShippingDefaults.MEASURE_WEIGHT_SYSTEM_KEYWORD}\" measure weight");
 
-            var weight = _shippingService.GetTotalWeight(shippingOptionRequest, ignoreFreeShippedItems: true);
-            weight = _measureService.ConvertFromPrimaryMeasureWeight(weight, measureWeight);
+            var weight = await _shippingService.GetTotalWeightAsync(shippingOptionRequest, ignoreFreeShippedItems: true);
+            weight = await _measureService.ConvertFromPrimaryMeasureWeightAsync(weight, measureWeight);
             weight = Convert.ToInt32(Math.Ceiling(weight));
             return Math.Max(weight, minRate);
         }
@@ -158,10 +159,10 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// </summary>
         /// <param name="item">Shopping cart item</param>
         /// <returns>Weight value</returns>
-        private decimal GetWeightForSingleItem(ShoppingCartItem item)
+        private async Task<decimal> GetWeightForSingleItemAsync(ShoppingCartItem item)
         {
-            var customer = _customerService.GetCustomerById(item.CustomerId);
-            var product = _productService.GetProductById(item.ProductId);
+            var customer = await _customerService.GetCustomerByIdAsync(item.CustomerId);
+            var product = await _productService.GetProductByIdAsync(item.ProductId);
 
             var shippingOptionRequest = new GetShippingOptionRequest
             {
@@ -169,7 +170,7 @@ namespace Nop.Plugin.Shipping.Fedex.Services
                 Items = new[] { new GetShippingOptionRequest.PackageItem(item, product, 1) }
             };
 
-            return GetWeight(shippingOptionRequest);
+            return await GetWeightAsync(shippingOptionRequest);
         }
 
         /// <summary>
@@ -181,7 +182,6 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         {
             return new FedexTracking.TrackRequest
             {
-                //
                 WebAuthenticationDetail = new FedexTracking.WebAuthenticationDetail
                 {
                     UserCredential = new FedexTracking.WebAuthenticationCredential
@@ -190,13 +190,11 @@ namespace Nop.Plugin.Shipping.Fedex.Services
                         Password = _fedexSettings.Password // Replace "XXX" with the Password
                     }
                 },
-                //
                 ClientDetail = new FedexTracking.ClientDetail
                 {
                     AccountNumber = _fedexSettings.AccountNumber, // Replace "XXX" with client's account number
                     MeterNumber = _fedexSettings.MeterNumber // Replace "XXX" with client's meter number
                 },
-                //
                 TransactionDetail = new FedexTracking.TransactionDetail
                 {
                     CustomerTransactionId = "***nopCommerce v16 Request using VC#***"
@@ -229,29 +227,29 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// <param name="sequenceNumber">Number</param>
         /// <param name="currencyCode">Currency code</param>
         /// <returns>Package details</returns>
-        private FedexRate.RequestedPackageLineItem CreatePackage(decimal width, decimal length, decimal height, decimal weight, decimal orderSubTotal, string sequenceNumber, string currencyCode)
+        private RequestedPackageLineItem CreatePackage(decimal width, decimal length, decimal height, decimal weight, decimal orderSubTotal, string sequenceNumber, string currencyCode)
         {
-            return new FedexRate.RequestedPackageLineItem
+            return new RequestedPackageLineItem
             {
                 SequenceNumber = sequenceNumber, // package sequence number            
                 GroupPackageCount = "1",
-                Weight = new FedexRate.Weight
+                Weight = new Weight
                 {
-                    Units = FedexRate.WeightUnits.LB,
+                    Units = WeightUnits.LB,
                     UnitsSpecified = true,
                     Value = weight,
                     ValueSpecified = true
                 }, // package weight
 
-                Dimensions = new FedexRate.Dimensions
+                Dimensions = new Dimensions
                 {
                     Length = _fedexSettings.PassDimensions ? length.ToString() : "0",
                     Width = _fedexSettings.PassDimensions ? width.ToString() : "0",
                     Height = _fedexSettings.PassDimensions ? height.ToString() : "0",
-                    Units = FedexRate.LinearUnits.IN,
+                    Units = LinearUnits.IN,
                     UnitsSpecified = true
                 }, // package dimensions
-                InsuredValue = new FedexRate.Money
+                InsuredValue = new Money
                 {
                     Amount = orderSubTotal,
                     Currency = currencyCode
@@ -263,65 +261,64 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// Create request details to get shipping rates
         /// </summary>
         /// <param name="shippingOptionRequest">Shipping option request</param>
-        /// <param name="saturdayDelivery">Whether to get rates for Saturday Delivery</param>
         /// <returns>Rate request details</returns>
-        private FedexRate.RateRequest CreateRateRequest(GetShippingOptionRequest shippingOptionRequest, out Currency requestedShipmentCurrency)
+        private async Task<(RateRequest rateRequest, Currency requestedShipmentCurrency)> CreateRateRequestAsync(GetShippingOptionRequest shippingOptionRequest)
         {
             // Build the RateRequest
-            var request = new FedexRate.RateRequest
+            var request = new RateRequest
             {
-                WebAuthenticationDetail = new FedexRate.WebAuthenticationDetail
+                WebAuthenticationDetail = new WebAuthenticationDetail
                 {
-                    UserCredential = new FedexRate.WebAuthenticationCredential
+                    UserCredential = new WebAuthenticationCredential
                     {
                         Key = _fedexSettings.Key,
                         Password = _fedexSettings.Password
                     }
                 },
 
-                ClientDetail = new FedexRate.ClientDetail
+                ClientDetail = new ClientDetail
                 {
                     AccountNumber = _fedexSettings.AccountNumber,
                     MeterNumber = _fedexSettings.MeterNumber
                 },
 
-                TransactionDetail = new FedexRate.TransactionDetail
+                TransactionDetail = new TransactionDetail
                 {
                     CustomerTransactionId = "***Rate Available Services v16 Request - nopCommerce***" // This is a reference field for the customer.  Any value can be used and will be provided in the response.
                 },
 
-                Version = new FedexRate.VersionId(), // WSDL version information, value is automatically set from wsdl            
+                Version = new VersionId(), // WSDL version information, value is automatically set from wsdl            
 
                 ReturnTransitAndCommit = true,
                 ReturnTransitAndCommitSpecified = true,
                 // Insert the Carriers you would like to see the rates for
                 CarrierCodes = new[] {
-                    FedexRate.CarrierCodeType.FDXE,
-                    FedexRate.CarrierCodeType.FDXG
+                    CarrierCodeType.FDXE,
+                    CarrierCodeType.FDXG
                 }
             };
 
             //TODO we should use getShippingOptionRequest.Items.GetQuantity() method to get subtotal
-            _orderTotalCalculationService.GetShoppingCartSubTotal(
+            var ( _,  _, _, subTotalWithDiscountBase, _) = await _orderTotalCalculationService.GetShoppingCartSubTotalAsync(
                 shippingOptionRequest.Items.Select(x => x.ShoppingCartItem).ToList(),
-                false, out var _, out var _, out var _, out var subTotalWithDiscountBase);
+                false);
 
-            request.RequestedShipment = new FedexRate.RequestedShipment();
+            request.RequestedShipment = new RequestedShipment();
 
             SetOrigin(request, shippingOptionRequest);
-            SetDestination(request, shippingOptionRequest);
+            await SetDestinationAsync(request, shippingOptionRequest);
 
-            requestedShipmentCurrency = GetRequestedShipmentCurrency(
+            var requestedShipmentCurrency = await GetRequestedShipmentCurrencyAsync(
                 request.RequestedShipment.Shipper.Address.CountryCode,    // origin
                 request.RequestedShipment.Recipient.Address.CountryCode); // destination
 
             decimal subTotalShipmentCurrency;
-            var primaryStoreCurrency = _currencyService.GetCurrencyById(_currencySettings.PrimaryStoreCurrencyId);
+            var primaryStoreCurrency = await _currencyService.GetCurrencyByIdAsync(_currencySettings.PrimaryStoreCurrencyId);
 
             if (requestedShipmentCurrency.CurrencyCode == primaryStoreCurrency.CurrencyCode)
                 subTotalShipmentCurrency = subTotalWithDiscountBase;
             else
-                subTotalShipmentCurrency = _currencyService.ConvertFromPrimaryStoreCurrency(subTotalWithDiscountBase, requestedShipmentCurrency);
+                subTotalShipmentCurrency = await _currencyService.ConvertFromPrimaryStoreCurrencyAsync(subTotalWithDiscountBase, requestedShipmentCurrency);
 
             Debug.WriteLine($"SubTotal (Primary Currency) : {subTotalWithDiscountBase} ({primaryStoreCurrency.CurrencyCode})");
             Debug.WriteLine($"SubTotal (Shipment Currency): {subTotalShipmentCurrency} ({requestedShipmentCurrency.CurrencyCode})");
@@ -333,22 +330,22 @@ namespace Nop.Plugin.Shipping.Fedex.Services
             switch (_fedexSettings.PackingType)
             {
                 case PackingType.PackByOneItemPerPackage:
-                    SetIndividualPackageLineItemsOneItemPerPackage(request, shippingOptionRequest, requestedShipmentCurrency.CurrencyCode);
+                    await SetIndividualPackageLineItemsOneItemPerPackageAsync(request, shippingOptionRequest, requestedShipmentCurrency.CurrencyCode);
                     break;
                 case PackingType.PackByVolume:
-                    SetIndividualPackageLineItemsCubicRootDimensions(request, shippingOptionRequest, subTotalShipmentCurrency, requestedShipmentCurrency.CurrencyCode);
+                    await SetIndividualPackageLineItemsCubicRootDimensionsAsync(request, shippingOptionRequest, subTotalShipmentCurrency, requestedShipmentCurrency.CurrencyCode);
                     break;
                 case PackingType.PackByDimensions:
                 default:
-                    SetIndividualPackageLineItems(request, shippingOptionRequest, subTotalShipmentCurrency, requestedShipmentCurrency.CurrencyCode);
+                    await SetIndividualPackageLineItemsAsync(request, shippingOptionRequest, subTotalShipmentCurrency, requestedShipmentCurrency.CurrencyCode);
                     break;
             }
-            return request;
+            return (request, requestedShipmentCurrency);
         }
 
-        private Currency GetRequestedShipmentCurrency(string originCountryCode, string destinCountryCode)
+        private async Task<Currency> GetRequestedShipmentCurrencyAsync(string originCountryCode, string destinCountryCode)
         {
-            var primaryStoreCurrency = _currencyService.GetCurrencyById(_currencySettings.PrimaryStoreCurrencyId);
+            var primaryStoreCurrency = await _currencyService.GetCurrencyByIdAsync(_currencySettings.PrimaryStoreCurrencyId);
 
             //The solution coded here might be considered a bit of a hack
             //it only supports the scenario for US / Canada / India shipping
@@ -358,13 +355,11 @@ namespace Nop.Plugin.Shipping.Fedex.Services
 
             //when neither the shipping origin's currency or the destinations currency is the same as the store primary currency,
             //FedEx would complain that "There are no valid services available. (code: 556)".
-            if (originCurrencyCode == primaryStoreCurrency.CurrencyCode || destinCurrencyCode == primaryStoreCurrency.CurrencyCode)
-            {
+            if (originCurrencyCode == primaryStoreCurrency.CurrencyCode || destinCurrencyCode == primaryStoreCurrency.CurrencyCode) 
                 return primaryStoreCurrency;
-            }
 
             //ensure that this currency exists
-            return _currencyService.GetCurrencyByCode(originCurrencyCode) ?? primaryStoreCurrency;
+            return await _currencyService.GetCurrencyByCodeAsync(originCurrencyCode) ?? primaryStoreCurrency;
 
             #region Local functions
 
@@ -398,7 +393,7 @@ namespace Nop.Plugin.Shipping.Fedex.Services
                     countryCode.Equals("CA", StringComparison.InvariantCultureIgnoreCase));
         }
 
-        private IList<ShippingOption> ParseResponse(FedexRate.RateReply reply, Currency requestedShipmentCurrency)
+        private async Task<IList<ShippingOption>> ParseResponseAsync(RateReply reply, Currency requestedShipmentCurrency)
         {
             var result = new List<ShippingOption>();
 
@@ -410,10 +405,8 @@ namespace Nop.Plugin.Shipping.Fedex.Services
                 var serviceName = FedexServices.GetServiceName(rateDetail.ServiceType.ToString());
 
                 // Skip the current service if services are selected and this service hasn't been selected
-                if (!string.IsNullOrEmpty(_fedexSettings.CarrierServicesOffered) && !_fedexSettings.CarrierServicesOffered.Contains(rateDetail.ServiceType.ToString()))
-                {
+                if (!string.IsNullOrEmpty(_fedexSettings.CarrierServicesOffered) && !_fedexSettings.CarrierServicesOffered.Contains(rateDetail.ServiceType.ToString())) 
                     continue;
-                }
 
                 Debug.WriteLine("ServiceType: " + rateDetail.ServiceType);
                 if (!serviceName.Equals("UNKNOWN"))
@@ -432,38 +425,37 @@ namespace Nop.Plugin.Shipping.Fedex.Services
 
                         // Get discounted rates if option is selected
                         if (_fedexSettings.ApplyDiscounts &
-                            (shipmentDetail.ShipmentRateDetail.RateType == FedexRate.ReturnedRateType.PAYOR_ACCOUNT_PACKAGE ||
-                            shipmentDetail.ShipmentRateDetail.RateType == FedexRate.ReturnedRateType.PAYOR_ACCOUNT_SHIPMENT))
+                            (shipmentDetail.ShipmentRateDetail.RateType == ReturnedRateType.PAYOR_ACCOUNT_PACKAGE ||
+                            shipmentDetail.ShipmentRateDetail.RateType == ReturnedRateType.PAYOR_ACCOUNT_SHIPMENT))
                         {
-                            var amount = ConvertChargeToPrimaryCurrency(shipmentDetail.ShipmentRateDetail.TotalNetCharge, requestedShipmentCurrency);
+                            var amount = await ConvertChargeToPrimaryCurrencyAsync(shipmentDetail.ShipmentRateDetail.TotalNetCharge, requestedShipmentCurrency);
                             shippingOption.Rate = amount + _fedexSettings.AdditionalHandlingCharge;
                             break;
                         }
-                        else if (shipmentDetail.ShipmentRateDetail.RateType == FedexRate.ReturnedRateType.PAYOR_LIST_PACKAGE ||
-                            shipmentDetail.ShipmentRateDetail.RateType == FedexRate.ReturnedRateType.PAYOR_LIST_SHIPMENT) // Get List Rates (not discount rates)
+
+                        if (shipmentDetail.ShipmentRateDetail.RateType == ReturnedRateType.PAYOR_LIST_PACKAGE ||
+                            shipmentDetail.ShipmentRateDetail.RateType == ReturnedRateType.PAYOR_LIST_SHIPMENT) // Get List Rates (not discount rates)
                         {
-                            var amount = ConvertChargeToPrimaryCurrency(shipmentDetail.ShipmentRateDetail.TotalNetCharge, requestedShipmentCurrency);
+                            var amount = await ConvertChargeToPrimaryCurrencyAsync(shipmentDetail.ShipmentRateDetail.TotalNetCharge, requestedShipmentCurrency);
                             shippingOption.Rate = amount + _fedexSettings.AdditionalHandlingCharge;
                             break;
-                        }
-                        else // Skip the rate (RATED_ACCOUNT, PAYOR_MULTIWEIGHT, or RATED_LIST)
-                        {
-                            continue;
                         }
                     }
                     result.Add(shippingOption);
                 }
                 Debug.WriteLine("**********************************************************");
             }
+
             return result;
         }
 
-        private void SetDestination(FedexRate.RateRequest request, GetShippingOptionRequest getShippingOptionRequest)
+        private async Task SetDestinationAsync(RateRequest request, GetShippingOptionRequest getShippingOptionRequest)
         {
-            request.RequestedShipment.Recipient = new FedexRate.Party
+            request.RequestedShipment.Recipient = new Party
             {
-                Address = new FedexRate.Address()
+                Address = new Address()
             };
+
             if (_fedexSettings.UseResidentialRates)
             {
                 request.RequestedShipment.Recipient.Address.Residential = true;
@@ -473,17 +465,14 @@ namespace Nop.Plugin.Shipping.Fedex.Services
             request.RequestedShipment.Recipient.Address.StreetLines = new[] { getShippingOptionRequest.ShippingAddress.Address1 };
             request.RequestedShipment.Recipient.Address.City = getShippingOptionRequest.ShippingAddress.City;
 
-            var recipientCountryCode = _countryService.GetCountryByAddress(getShippingOptionRequest.ShippingAddress)?.TwoLetterIsoCode ?? string.Empty;
+            var recipientCountryCode = (await _countryService.GetCountryByAddressAsync(getShippingOptionRequest.ShippingAddress))?.TwoLetterIsoCode ?? string.Empty;
 
-            if (_stateProvinceService.GetStateProvinceByAddress(getShippingOptionRequest.ShippingAddress) is StateProvince stateProvince &&
+            if (await _stateProvinceService.GetStateProvinceByAddressAsync(getShippingOptionRequest.ShippingAddress) is StateProvince stateProvince &&
                 IncludeStateProvinceCode(recipientCountryCode))
-            {
                 request.RequestedShipment.Recipient.Address.StateOrProvinceCode = stateProvince.Abbreviation;
-            }
             else
-            {
                 request.RequestedShipment.Recipient.Address.StateOrProvinceCode = string.Empty;
-            }
+            
             request.RequestedShipment.Recipient.Address.PostalCode = getShippingOptionRequest.ShippingAddress.ZipPostalCode;
             request.RequestedShipment.Recipient.Address.CountryCode = recipientCountryCode;
         }
@@ -495,10 +484,10 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// <param name="getShippingOptionRequest">Shipping option request</param>
         /// <param name="orderSubTotal"></param>
         /// <param name="currencyCode">Currency code</param>
-        private void SetIndividualPackageLineItems(FedexRate.RateRequest request, GetShippingOptionRequest getShippingOptionRequest, decimal orderSubTotal, string currencyCode)
+        private async Task SetIndividualPackageLineItemsAsync(RateRequest request, GetShippingOptionRequest getShippingOptionRequest, decimal orderSubTotal, string currencyCode)
         {
-            var (length, height, width) = GetDimensions(getShippingOptionRequest.Items);
-            var weight = GetWeight(getShippingOptionRequest);
+            var (length, height, width) = await GetDimensionsAsync(getShippingOptionRequest.Items);
+            var weight = await GetWeightAsync(getShippingOptionRequest);
 
             if (!IsPackageTooHeavy(weight) && !IsPackageTooLarge(length, height, width))
             {
@@ -513,15 +502,14 @@ namespace Nop.Plugin.Shipping.Fedex.Services
             {
                 var totalPackagesDims = 1;
                 var totalPackagesWeights = 1;
-                if (IsPackageTooHeavy(weight))
-                {
+                if (IsPackageTooHeavy(weight)) 
                     totalPackagesWeights = Convert.ToInt32(Math.Ceiling(weight / FedexShippingDefaults.MAX_PACKAGE_WEIGHT));
-                }
-                if (IsPackageTooLarge(length, height, width))
-                {
+               
+                if (IsPackageTooLarge(length, height, width)) 
                     totalPackagesDims = Convert.ToInt32(Math.Ceiling(TotalPackageSize(length, height, width) / 108M));
-                }
+                
                 var totalPackages = totalPackagesDims > totalPackagesWeights ? totalPackagesDims : totalPackagesWeights;
+                
                 if (totalPackages == 0)
                     totalPackages = 1;
 
@@ -546,7 +534,7 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// <param name="getShippingOptionRequest">Shipping option request</param>
         /// <param name="orderSubTotal"></param>
         /// <param name="currencyCode">Currency code</param>
-        private void SetIndividualPackageLineItemsCubicRootDimensions(FedexRate.RateRequest request, GetShippingOptionRequest getShippingOptionRequest, decimal orderSubTotal, string currencyCode)
+        private async Task SetIndividualPackageLineItemsCubicRootDimensionsAsync(RateRequest request, GetShippingOptionRequest getShippingOptionRequest, decimal orderSubTotal, string currencyCode)
         {
             //From FedEx Guide (Ground):
             //Dimensional weight is based on volume (the amount of space a package
@@ -581,9 +569,9 @@ namespace Nop.Plugin.Shipping.Fedex.Services
             //  1 package  25x25x25 (60 lbs)      = $71.70    71.70
 
             var totalPackagesDims = 1;
-            var length = 0M;
-            var height = 0M;
-            var width = 0M;
+            decimal length;
+            decimal height;
+            decimal width;
 
             if (getShippingOptionRequest.Items.Count == 1 && getShippingOptionRequest.Items[0].GetQuantity() == 1)
             {
@@ -591,7 +579,7 @@ namespace Nop.Plugin.Shipping.Fedex.Services
 
                 //get dimensions and weight of the single cubic size of package
                 var item = getShippingOptionRequest.Items.FirstOrDefault().ShoppingCartItem;
-                (width, length, height) = GetDimensionsForSingleItem(item);
+                (width, length, height) = await GetDimensionsForSingleItemAsync(item);
             }
             else
             {
@@ -599,10 +587,10 @@ namespace Nop.Plugin.Shipping.Fedex.Services
                 var dimension = 0;
 
                 //get total volume of the package
-                var totalVolume = getShippingOptionRequest.Items.Sum(item =>
+                var totalVolume = await getShippingOptionRequest.Items.SumAwaitAsync(async item =>
                 {
                     //get dimensions and weight of the single item
-                    var (itemWidth, itemLength, itemHeight) = GetDimensionsForSingleItem(item.ShoppingCartItem);
+                    var (itemWidth, itemLength, itemHeight) = await GetDimensionsForSingleItemAsync(item.ShoppingCartItem);
                     return item.GetQuantity() * itemWidth * itemLength * itemHeight;
                 });
                 if (totalVolume > decimal.Zero)
@@ -630,13 +618,11 @@ namespace Nop.Plugin.Shipping.Fedex.Services
             length = Math.Max(length, 1);
             height = Math.Max(height, 1);
 
-            var weight = GetWeight(getShippingOptionRequest);
+            var weight = await GetWeightAsync(getShippingOptionRequest);
 
             var totalPackagesWeights = 1;
-            if (IsPackageTooHeavy(weight))
-            {
+            if (IsPackageTooHeavy(weight)) 
                 totalPackagesWeights = Convert.ToInt32(Math.Ceiling(weight / FedexShippingDefaults.MAX_PACKAGE_WEIGHT));
-            }
 
             var totalPackages = totalPackagesDims > totalPackagesWeights ? totalPackagesDims : totalPackagesWeights;
 
@@ -656,7 +642,7 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// <param name="request">Shipping request</param>
         /// <param name="getShippingOptionRequest">Shipping option request</param>
         /// <param name="currencyCode">Currency code</param>
-        private void SetIndividualPackageLineItemsOneItemPerPackage(FedexRate.RateRequest request, GetShippingOptionRequest getShippingOptionRequest, string currencyCode)
+        private async Task SetIndividualPackageLineItemsOneItemPerPackageAsync(RateRequest request, GetShippingOptionRequest getShippingOptionRequest, string currencyCode)
         {
             // Rate request setup - each Shopping Cart Item is a separate package
             var i = 1;
@@ -664,13 +650,13 @@ namespace Nop.Plugin.Shipping.Fedex.Services
             var totalItems = items.Sum(x => x.GetQuantity());
 
             request.RequestedShipment.PackageCount = totalItems.ToString();
-            request.RequestedShipment.RequestedPackageLineItems = getShippingOptionRequest.Items.SelectMany(packageItem =>
+            request.RequestedShipment.RequestedPackageLineItems = await getShippingOptionRequest.Items.SelectManyAwait<GetShippingOptionRequest.PackageItem, RequestedPackageLineItem>(async packageItem =>
             {
                 //get dimensions and weight of the single item
-                var (width, length, height) = GetDimensionsForSingleItem(packageItem.ShoppingCartItem);
-                var weight = GetWeightForSingleItem(packageItem.ShoppingCartItem);
+                var (width, length, height) = await GetDimensionsForSingleItemAsync(packageItem.ShoppingCartItem);
+                var weight = await GetWeightForSingleItemAsync(packageItem.ShoppingCartItem);
 
-                var product = _productService.GetProductById(packageItem.ShoppingCartItem.ProductId);
+                var product = await _productService.GetProductByIdAsync(packageItem.ShoppingCartItem.ProductId);
                 var package = CreatePackage(width, length, height, weight, product.Price, (i + 1).ToString(), currencyCode);
                 package.GroupPackageCount = "1";
 
@@ -679,14 +665,14 @@ namespace Nop.Plugin.Shipping.Fedex.Services
                 i += packageItem.GetQuantity();
 
                 return packs;
-            }).ToArray();
+            }).ToArrayAsync();
         }
 
-        private void SetOrigin(FedexRate.RateRequest request, GetShippingOptionRequest getShippingOptionRequest)
+        private void SetOrigin(RateRequest request, GetShippingOptionRequest getShippingOptionRequest)
         {
-            request.RequestedShipment.Shipper = new FedexRate.Party
+            request.RequestedShipment.Shipper = new Party
             {
-                Address = new FedexRate.Address()
+                Address = new Address()
             };
 
             if (getShippingOptionRequest.CountryFrom is null)
@@ -703,15 +689,15 @@ namespace Nop.Plugin.Shipping.Fedex.Services
             request.RequestedShipment.Shipper.Address.CountryCode = getShippingOptionRequest.CountryFrom.TwoLetterIsoCode;
         }
 
-        private void SetPayment(FedexRate.RateRequest request)
+        private void SetPayment(RateRequest request)
         {
-            request.RequestedShipment.ShippingChargesPayment = new FedexRate.Payment
+            request.RequestedShipment.ShippingChargesPayment = new Payment
             {
-                PaymentType = FedexRate.PaymentType.SENDER, // Payment options are RECIPIENT, SENDER, THIRD_PARTY
+                PaymentType = PaymentType.SENDER, // Payment options are RECIPIENT, SENDER, THIRD_PARTY
                 PaymentTypeSpecified = true,
-                Payor = new FedexRate.Payor
+                Payor = new Payor
                 {
-                    ResponsibleParty = new FedexRate.Party
+                    ResponsibleParty = new Party
                     {
                         AccountNumber = _fedexSettings.AccountNumber
                     }
@@ -719,7 +705,7 @@ namespace Nop.Plugin.Shipping.Fedex.Services
             }; // Payment Information
         }
 
-        private void SetShipmentDetails(FedexRate.RateRequest request, decimal orderSubTotal, string currencyCode)
+        private void SetShipmentDetails(RateRequest request, decimal orderSubTotal, string currencyCode)
         {
             //set drop off type
             request.RequestedShipment.DropoffType = _fedexSettings.DropoffType switch
@@ -732,7 +718,7 @@ namespace Nop.Plugin.Shipping.Fedex.Services
                 _ => FedexRate.DropoffType.BUSINESS_SERVICE_CENTER
             };
 
-            request.RequestedShipment.TotalInsuredValue = new FedexRate.Money
+            request.RequestedShipment.TotalInsuredValue = new Money
             {
                 Amount = orderSubTotal,
                 Currency = currencyCode
@@ -749,8 +735,8 @@ namespace Nop.Plugin.Shipping.Fedex.Services
             request.RequestedShipment.ShipTimestampSpecified = true;
 
             request.RequestedShipment.RateRequestTypes = new[] {
-                FedexRate.RateRequestType.PREFERRED,
-                FedexRate.RateRequestType.LIST
+                RateRequestType.PREFERRED,
+                RateRequestType.LIST
             };
             //request.RequestedShipment.PackageDetail = RequestedPackageDetailType.INDIVIDUAL_PACKAGES;
             //request.RequestedShipment.PackageDetailSpecified = true;
@@ -759,11 +745,11 @@ namespace Nop.Plugin.Shipping.Fedex.Services
             if (request.RequestedShipment.Shipper.Address.CountryCode.Equals("IN", StringComparison.InvariantCultureIgnoreCase) &&
                 request.RequestedShipment.Recipient.Address.CountryCode.Equals("IN", StringComparison.InvariantCultureIgnoreCase))
             {
-                var commodity = new FedexRate.Commodity
+                var commodity = new Commodity
                 {
                     Name = "1",
                     NumberOfPieces = "1",
-                    CustomsValue = new FedexRate.Money
+                    CustomsValue = new Money
                     {
                         Amount = orderSubTotal,
                         AmountSpecified = true,
@@ -771,11 +757,11 @@ namespace Nop.Plugin.Shipping.Fedex.Services
                     }
                 };
 
-                request.RequestedShipment.CustomsClearanceDetail = new FedexRate.CustomsClearanceDetail
+                request.RequestedShipment.CustomsClearanceDetail = new CustomsClearanceDetail
                 {
-                    CommercialInvoice = new FedexRate.CommercialInvoice
+                    CommercialInvoice = new CommercialInvoice
                     {
-                        Purpose = FedexRate.PurposeOfShipmentType.SOLD,
+                        Purpose = PurposeOfShipmentType.SOLD,
                         PurposeSpecified = true
                     },
                     Commodities = new[] { commodity }
@@ -811,7 +797,7 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// </summary>
         /// <param name="trackingNumber">The tracking number to track</param>
         /// <returns>Shipment events</returns>
-        public virtual IList<ShipmentStatusEvent> GetShipmentEvents(string trackingNumber)
+        public virtual async Task<IList<ShipmentStatusEvent>> GetShipmentEventsAsync(string trackingNumber)
         {
             try
             {
@@ -819,29 +805,26 @@ namespace Nop.Plugin.Shipping.Fedex.Services
                 var request = CreateTrackRequest(trackingNumber);
 
                 //this is the call to the web service passing in a TrackRequest and returning a TrackReply
-                var reply = TrackAsync(request).Result;
+                var reply = await TrackAsync(request);
 
                 //parse response
                 if (new[] { FedexTracking.NotificationSeverityType.SUCCESS, FedexTracking.NotificationSeverityType.NOTE, FedexTracking.NotificationSeverityType.WARNING }.Contains(reply.HighestSeverity)) // check if the call was successful
-                {
-
                     return reply.CompletedTrackDetails?
                         .SelectMany(completedTrackDetails => completedTrackDetails.TrackDetails?
-                            .SelectMany(trackDetails => trackDetails.Events?
+                            .SelectMany(trackDetails => trackDetails.Events?.Where(trackEvent=> trackEvent != null)
                                 .Select(trackEvent => new ShipmentStatusEvent
                                 {
                                     EventName = $"{trackEvent.EventDescription} ({trackEvent.EventType})",
-                                    Location = trackEvent?.Address?.City,
-                                    CountryCode = trackEvent?.Address?.CountryCode,
+                                    Location = trackEvent.Address?.City,
+                                    CountryCode = trackEvent.Address?.CountryCode,
                                     Date = trackEvent.TimestampSpecified ? trackEvent.Timestamp as DateTime? : null
                                 })))
                         .ToList();
-                }
             }
             catch (Exception exception)
             {
                 //log errors
-                _logger.Error($"Error while getting Fedex shipment tracking info - {trackingNumber}{Environment.NewLine}{exception.Message}", exception, _workContext.CurrentCustomer);
+                await _logger.ErrorAsync($"Error while getting Fedex shipment tracking info - {trackingNumber}{Environment.NewLine}{exception.Message}", exception, await _workContext.GetCurrentCustomerAsync());
             }
 
             return new List<ShipmentStatusEvent>();
@@ -852,37 +835,34 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// </summary>
         /// <param name="shippingOptionRequest">Shipping option request details</param>
         /// <returns>Represents a response of getting shipping rate options</returns>
-        public virtual GetShippingOptionResponse GetRates(GetShippingOptionRequest shippingOptionRequest)
+        public virtual async Task<GetShippingOptionResponse> GetRatesAsync(GetShippingOptionRequest shippingOptionRequest)
         {
             var response = new GetShippingOptionResponse();
 
-            var request = CreateRateRequest(shippingOptionRequest, out var requestedShipmentCurrency);
+            var (request, requestedShipmentCurrency) = await CreateRateRequestAsync(shippingOptionRequest);
 
-            var service = new FedexRate.RatePortTypeClient(FedexRate.RatePortTypeClient.EndpointConfiguration.RateServicePort, _fedexSettings.Url);
+            var service = new RatePortTypeClient(RatePortTypeClient.EndpointConfiguration.RateServicePort, _fedexSettings.Url);
 
             try
             {
                 // This is the call to the web service passing in a RateRequest and returning a RateReply
-                var reply = service.getRatesAsync(request).Result.RateReply; // Service call
+                var rateResult = await service.getRatesAsync(request);
+                var reply = rateResult.RateReply;
 
-                if (new[] { FedexRate.NotificationSeverityType.SUCCESS, FedexRate.NotificationSeverityType.NOTE, FedexRate.NotificationSeverityType.WARNING }.Contains(reply.HighestSeverity)) // check if the call was successful
+                if (new[] { NotificationSeverityType.SUCCESS, NotificationSeverityType.NOTE, NotificationSeverityType.WARNING }.Contains(reply.HighestSeverity)) // check if the call was successful
                 {
                     if (reply.RateReplyDetails != null)
                     {
-                        var shippingOptions = ParseResponse(reply, requestedShipmentCurrency);
+                        var shippingOptions = await ParseResponseAsync(reply, requestedShipmentCurrency);
                         foreach (var shippingOption in shippingOptions)
                             response.ShippingOptions.Add(shippingOption);
                     }
                     else
                     {
                         if (reply.Notifications?.Length > 0 && !string.IsNullOrEmpty(reply.Notifications[0].Message))
-                        {
                             response.AddError($"{reply.Notifications[0].Message} (code: {reply.Notifications[0].Code})");
-                        }
                         else
-                        {
                             response.AddError("Could not get reply from shipping server");
-                        }
                     }
                 }
                 else

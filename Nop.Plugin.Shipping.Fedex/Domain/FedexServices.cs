@@ -41,6 +41,7 @@ namespace Nop.Plugin.Shipping.Fedex.Domain
         #endregion
 
         #region Utilities
+
         /// <summary>
         /// Gets the text name based on the ServiceID (in FedEx Reply)
         /// </summary>
@@ -110,6 +111,5 @@ namespace Nop.Plugin.Shipping.Fedex.Domain
         }
 
         #endregion
-
     }
 }

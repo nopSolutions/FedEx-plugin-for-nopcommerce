@@ -17,24 +17,24 @@
         function togglePackingType() {
             var selectedPackingTypeId = $("#PackingType").val();
             if (selectedPackingTypeId == @(((int)PackingType.PackByDimensions).ToString())) {
-                $('#pnlPassDimensions').show();
-                $('#pnlPackingPackageVolume').hide();
+                $('#pnlPassDimensions').showElement();
+                $('#pnlPackingPackageVolume').hideElement();
             }
             else if (selectedPackingTypeId == @(((int)PackingType.PackByOneItemPerPackage).ToString())) {
-                $('#pnlPassDimensions').hide();
-                $('#pnlPackingPackageVolume').hide();
+                $('#pnlPassDimensions').hideElement();
+                $('#pnlPackingPackageVolume').hideElement();
             }
             else if (selectedPackingTypeId == @(((int)PackingType.PackByVolume).ToString())) {
-                $('#pnlPassDimensions').hide();
-                $('#pnlPackingPackageVolume').show();
+                $('#pnlPassDimensions').hideElement();
+                $('#pnlPackingPackageVolume').showElement();
             }
         }
     </script>
 
-    <div class="panel-group">
-        <div class="panel panel-default">
-            <div class="panel-body">
-                <div class="form-group">
+    <div class="cards-group">
+        <div class="card card-default">
+            <div class="card-body">
+                <div class="form-group row">
                     <div class="col-md-3">
                         <nop-label asp-for="Url" />
                     </div>
@@ -43,7 +43,7 @@
                         <span asp-validation-for="Url"></span>
                     </div>
                 </div>
-                <div class="form-group">
+                <div class="form-group row">
                     <div class="col-md-3">
                         <nop-label asp-for="Key" />
                     </div>
@@ -52,7 +52,7 @@
                         <span asp-validation-for="Key"></span>
                     </div>
                 </div>
-                <div class="form-group">
+                <div class="form-group row">
                     <div class="col-md-3">
                         <nop-label asp-for="Password" />
                     </div>
@@ -61,7 +61,7 @@
                         <span asp-validation-for="Password"></span>
                     </div>
                 </div>
-                <div class="form-group">
+                <div class="form-group row">
                     <div class="col-md-3">
                         <nop-label asp-for="AccountNumber" />
                     </div>
@@ -70,7 +70,7 @@
                         <span asp-validation-for="AccountNumber"></span>
                     </div>
                 </div>
-                <div class="form-group">
+                <div class="form-group row">
                     <div class="col-md-3">
                         <nop-label asp-for="MeterNumber" />
                     </div>
@@ -79,7 +79,7 @@
                         <span asp-validation-for="MeterNumber"></span>
                     </div>
                 </div>
-                <div class="form-group">
+                <div class="form-group row">
                     <div class="col-md-3">
                         <nop-label asp-for="AvailableDropOffTypes" />
                     </div>
@@ -87,7 +87,7 @@
                         <nop-select asp-for="DropoffType" asp-items="Model.AvailableDropOffTypes" />
                     </div>
                 </div>
-                <div class="form-group">
+                <div class="form-group row">
                     <div class="col-md-3">
                         <nop-label asp-for="UseResidentialRates" />
                     </div>
@@ -96,7 +96,7 @@
                         <span asp-validation-for="UseResidentialRates"></span>
                     </div>
                 </div>
-                <div class="form-group">
+                <div class="form-group row">
                     <div class="col-md-3">
                         <nop-label asp-for="ApplyDiscounts" />
                     </div>
@@ -105,7 +105,7 @@
                         <span asp-validation-for="ApplyDiscounts"></span>
                     </div>
                 </div>
-                <div class="form-group">
+                <div class="form-group row">
                     <div class="col-md-3">
                         <nop-label asp-for="AdditionalHandlingCharge" />
                     </div>
@@ -114,7 +114,7 @@
                         <span asp-validation-for="AdditionalHandlingCharge"></span>
                     </div>
                 </div>
-                <div class="form-group">
+                <div class="form-group row">
                     <div class="col-md-3">
                         <nop-label asp-for="AvailableCarrierServices" />
                     </div>
@@ -130,7 +130,7 @@
                         }
                     </div>
                 </div>
-                <div class="form-group">
+                <div class="form-group row">
                     <div class="col-md-3">
                         <nop-label asp-for="PackingTypeValues" />
                     </div>
@@ -138,7 +138,7 @@
                         <nop-select asp-for="PackingType" asp-items="Model.PackingTypeValues" />
                     </div>
                 </div>
-                <div class="form-group" id="pnlPassDimensions">
+                <div class="form-group row" id="pnlPassDimensions">
                     <div class="col-md-3">
                         <nop-label asp-for="PassDimensions" />
                     </div>
@@ -147,7 +147,7 @@
                         <span asp-validation-for="PassDimensions"></span>
                     </div>
                 </div>
-                <div class="form-group" id="pnlPackingPackageVolume">
+                <div class="form-group row" id="pnlPackingPackageVolume">
                     <div class="col-md-3">
                         <nop-label asp-for="PackingPackageVolume" />
                     </div>
@@ -156,7 +156,7 @@
                         <span asp-validation-for="PackingPackageVolume"></span>
                     </div>
                 </div>
-                <div class="form-group">
+                <div class="form-group row">
                     <div class="col-md-9 col-md-offset-3">
                         <input type="submit" name="save" class="btn bg-primary" value="@T("Admin.Common.Save")" />
                     </div>
