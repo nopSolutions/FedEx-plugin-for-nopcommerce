@@ -98,7 +98,10 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// </summary>
         /// <param name="items">Package items</param>
         /// <param name="minRate">Minimal rate</param>
-        /// <returns>Dimensions values</returns>
+        /// <returns>
+        /// A task that represents the asynchronous operation
+        /// The task result contains the dimensions values
+        /// </returns>
         private async Task<(decimal width, decimal length, decimal height)> GetDimensionsAsync(IList<GetShippingOptionRequest.PackageItem> items, int minRate = 1)
         {
             var measureDimension = await _measureService.GetMeasureDimensionBySystemKeywordAsync(FedexShippingDefaults.MEASURE_DIMENSION_SYSTEM_KEYWORD) ??
@@ -127,7 +130,10 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// Get dimensions values of the single shopping cart item
         /// </summary>
         /// <param name="item">Shopping cart item</param>
-        /// <returns>Dimensions values</returns>
+        /// <returns>
+        /// A task that represents the asynchronous operation
+        /// The task result contains the dimensions values
+        /// </returns>
         private async Task<(decimal width, decimal length, decimal height)> GetDimensionsForSingleItemAsync(ShoppingCartItem item)
         {
             var product = await _productService.GetProductByIdAsync(item.ProductId);
@@ -142,7 +148,10 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// </summary>
         /// <param name="shippingOptionRequest">Shipping option request</param>
         /// <param name="minRate">Minimal rate</param>
-        /// <returns>Weight value</returns>
+        /// <returns>
+        /// A task that represents the asynchronous operation
+        /// The task result contains the weight value
+        /// </returns>
         private async Task<decimal> GetWeightAsync(GetShippingOptionRequest shippingOptionRequest, int minRate = 1)
         {
             var measureWeight = await _measureService.GetMeasureWeightBySystemKeywordAsync(FedexShippingDefaults.MEASURE_WEIGHT_SYSTEM_KEYWORD) ??
@@ -158,7 +167,10 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// Get weight value of the single shopping cart item
         /// </summary>
         /// <param name="item">Shopping cart item</param>
-        /// <returns>Weight value</returns>
+        /// <returns>
+        /// A task that represents the asynchronous operation
+        /// The task result contains the weight value
+        /// </returns>
         private async Task<decimal> GetWeightForSingleItemAsync(ShoppingCartItem item)
         {
             var customer = await _customerService.GetCustomerByIdAsync(item.CustomerId);
@@ -261,7 +273,10 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// Create request details to get shipping rates
         /// </summary>
         /// <param name="shippingOptionRequest">Shipping option request</param>
-        /// <returns>Rate request details</returns>
+        /// <returns>
+        /// A task that represents the asynchronous operation
+        /// The task result contains the rate request details
+        /// </returns>
         private async Task<(RateRequest rateRequest, Currency requestedShipmentCurrency)> CreateRateRequestAsync(GetShippingOptionRequest shippingOptionRequest)
         {
             // Build the RateRequest
@@ -484,6 +499,7 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// <param name="getShippingOptionRequest">Shipping option request</param>
         /// <param name="orderSubTotal"></param>
         /// <param name="currencyCode">Currency code</param>
+        /// <returns>A task that represents the asynchronous operation</returns>
         private async Task SetIndividualPackageLineItemsAsync(RateRequest request, GetShippingOptionRequest getShippingOptionRequest, decimal orderSubTotal, string currencyCode)
         {
             var (length, height, width) = await GetDimensionsAsync(getShippingOptionRequest.Items);
@@ -534,6 +550,7 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// <param name="getShippingOptionRequest">Shipping option request</param>
         /// <param name="orderSubTotal"></param>
         /// <param name="currencyCode">Currency code</param>
+        /// <returns>A task that represents the asynchronous operation</returns>
         private async Task SetIndividualPackageLineItemsCubicRootDimensionsAsync(RateRequest request, GetShippingOptionRequest getShippingOptionRequest, decimal orderSubTotal, string currencyCode)
         {
             //From FedEx Guide (Ground):
@@ -642,6 +659,7 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// <param name="request">Shipping request</param>
         /// <param name="getShippingOptionRequest">Shipping option request</param>
         /// <param name="currencyCode">Currency code</param>
+        /// <returns>A task that represents the asynchronous operation</returns>
         private async Task SetIndividualPackageLineItemsOneItemPerPackageAsync(RateRequest request, GetShippingOptionRequest getShippingOptionRequest, string currencyCode)
         {
             // Rate request setup - each Shopping Cart Item is a separate package
@@ -796,7 +814,10 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// Gets all events for a tracking number
         /// </summary>
         /// <param name="trackingNumber">The tracking number to track</param>
-        /// <returns>Shipment events</returns>
+        /// <returns>
+        /// A task that represents the asynchronous operation
+        /// The task result contains the shipment events
+        /// </returns>
         public virtual async Task<IList<ShipmentStatusEvent>> GetShipmentEventsAsync(string trackingNumber)
         {
             try
@@ -834,7 +855,10 @@ namespace Nop.Plugin.Shipping.Fedex.Services
         /// Gets shipping rates
         /// </summary>
         /// <param name="shippingOptionRequest">Shipping option request details</param>
-        /// <returns>Represents a response of getting shipping rate options</returns>
+        /// <returns>
+        /// A task that represents the asynchronous operation
+        /// The task result contains the response of getting shipping rate options
+        /// </returns>
         public virtual async Task<GetShippingOptionResponse> GetRatesAsync(GetShippingOptionRequest shippingOptionRequest)
         {
             var response = new GetShippingOptionResponse();
