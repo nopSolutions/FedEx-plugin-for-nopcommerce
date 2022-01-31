@@ -106,7 +106,7 @@ namespace Nop.Plugin.Shipping.Fedex
             await _settingService.SaveSettingAsync(settings);
 
             //locales
-            await _localizationService.AddLocaleResourceAsync(new Dictionary<string, string>
+            await _localizationService.AddOrUpdateLocaleResourceAsync(new Dictionary<string, string>
             {
                 ["Plugins.Shipping.Fedex.Fields.Url"] = "URL",
                 ["Plugins.Shipping.Fedex.Fields.Url.Hint"] = "Specify FedEx URL.",
@@ -161,6 +161,18 @@ namespace Nop.Plugin.Shipping.Fedex
             await _localizationService.DeleteLocaleResourcesAsync("Enums.Nop.Plugin.Shipping.Fedex");
 
             await base.UninstallAsync();
+        }
+
+        /// <summary>
+        /// Get associated shipment tracker
+        /// </summary>
+        /// <returns>
+        /// A task that represents the asynchronous operation
+        /// The task result contains the shipment tracker
+        /// </returns>
+        public Task<IShipmentTracker> GetShipmentTrackerAsync()
+        {
+            return Task.FromResult<IShipmentTracker>(null);
         }
 
         #endregion

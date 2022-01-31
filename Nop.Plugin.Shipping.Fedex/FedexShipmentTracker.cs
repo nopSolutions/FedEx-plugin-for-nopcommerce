@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
+using Nop.Core.Domain.Shipping;
 using Nop.Plugin.Shipping.Fedex.Services;
 using Nop.Services.Shipping.Tracking;
 
@@ -42,27 +43,29 @@ namespace Nop.Plugin.Shipping.Fedex
         }
 
         /// <summary>
-        /// Gets an URL for a page to show tracking info (third party tracking page).
+        /// Get URL for a page to show tracking info (third party tracking page)
         /// </summary>
-        /// <param name="trackingNumber">The tracking number to track.</param>
+        /// <param name="trackingNumber">The tracking number to track</param>
+        /// <param name="shipment">Shipment; pass null if the tracking number is not associated with a specific shipment</param>
         /// <returns>
         /// A task that represents the asynchronous operation
-        /// The task result contains the uRL of a tracking page.
+        /// The task result contains the URL of a tracking page
         /// </returns>
-        public virtual Task<string> GetUrlAsync(string trackingNumber)
+        public virtual Task<string> GetUrlAsync(string trackingNumber, Shipment shipment = null)
         {
             return Task.FromResult($"https://www.fedex.com/apps/fedextrack/?action=track&tracknumbers={trackingNumber}");
         }
-
+        
         /// <summary>
-        /// Gets all events for a tracking number.
+        /// Get all shipment events
         /// </summary>
         /// <param name="trackingNumber">The tracking number to track</param>
+        /// <param name="shipment">Shipment; pass null if the tracking number is not associated with a specific shipment</param>
         /// <returns>
         /// A task that represents the asynchronous operation
-        /// The task result contains the list of Shipment Events.
+        /// The task result contains the list of shipment events
         /// </returns>
-        public virtual async Task<IList<ShipmentStatusEvent>> GetShipmentEventsAsync(string trackingNumber)
+        public virtual async Task<IList<ShipmentStatusEvent>> GetShipmentEventsAsync(string trackingNumber, Shipment shipment = null)
         {
             if (string.IsNullOrEmpty(trackingNumber))
                 return new List<ShipmentStatusEvent>();
