@@ -172,17 +172,8 @@ namespace Nop.Plugin.Shipping.Fedex
         /// </returns>
         public Task<IShipmentTracker> GetShipmentTrackerAsync()
         {
-            return Task.FromResult<IShipmentTracker>(null);
+            return Task.FromResult<IShipmentTracker>(new FedexShipmentTracker(_fedexService));
         }
-
-        #endregion
-
-        #region Properties
-
-        /// <summary>
-        /// Gets a shipment tracker
-        /// </summary>
-        public IShipmentTracker ShipmentTracker => new FedexShipmentTracker(_fedexService);
 
         #endregion
     }
