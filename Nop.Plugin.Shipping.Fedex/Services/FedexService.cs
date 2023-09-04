@@ -255,9 +255,9 @@ namespace Nop.Plugin.Shipping.Fedex.Services
 
                 Dimensions = new Dimensions
                 {
-                    Length = _fedexSettings.PassDimensions ? length.ToString() : "0",
-                    Width = _fedexSettings.PassDimensions ? width.ToString() : "0",
-                    Height = _fedexSettings.PassDimensions ? height.ToString() : "0",
+                    Length = _fedexSettings.PassDimensions ? ((int)length).ToString() : "0",
+                    Width = _fedexSettings.PassDimensions ? ((int)width).ToString() : "0",
+                    Height = _fedexSettings.PassDimensions ? ((int)height).ToString() : "0",
                     Units = LinearUnits.IN,
                     UnitsSpecified = true
                 }, // package dimensions
