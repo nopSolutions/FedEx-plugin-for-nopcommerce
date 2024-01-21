@@ -309,7 +309,8 @@ namespace Nop.Plugin.Shipping.Fedex.Services
                 // Insert the Carriers you would like to see the rates for
                 CarrierCodes = new[] {
                     CarrierCodeType.FDXE,
-                    CarrierCodeType.FDXG
+                    CarrierCodeType.FDXG,
+                    CarrierCodeType.FXSP
                 }
             };
 
@@ -319,6 +320,14 @@ namespace Nop.Plugin.Shipping.Fedex.Services
                 false);
 
             request.RequestedShipment = new RequestedShipment();
+			
+			if (_fedexSettings.CarrierServicesOffered.Contains("SMART_POST")){
+                request.RequestedShipment.SmartPostDetail = new SmartPostShipmentDetail()
+                {
+                    IndiciaSpecified = true,
+                    Indicia = SmartPostIndiciaType.PARCEL_SELECT
+                };
+            }
 
             SetOrigin(request, shippingOptionRequest);
             await SetDestinationAsync(request, shippingOptionRequest);
