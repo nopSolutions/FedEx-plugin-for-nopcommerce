@@ -14,29 +14,16 @@ public class FedexServices
     /// <summary>
     /// FedEx services string names
     /// </summary>
-    public string[] Services { get; } = {
-                                    "FedEx Europe First International Priority",
-                                    "FedEx 1Day Freight",
-                                    "FedEx 2Day",
-                                    "FedEx 2Day Freight",
-                                    "FedEx 3Day Freight",
-                                    "FedEx Express Saver",
-                                    "FedEx Ground",
-                                    "FedEx First Overnight",
-                                    "FedEx Ground Home Delivery",
-                                    "FedEx International Distribution Freight",
-                                    "FedEx International Economy",
-                                    "FedEx International Economy Distribution",
-                                    "FedEx International Economy Freight",
-                                    "FedEx International First",
-                                    "FedEx International Priority",
-                                    "FedEx International Priority Freight",
-                                    "FedEx Priority Overnight",
-                                    "FedEx Smart Post",
-                                    "FedEx Standard Overnight",
-                                    "FedEx Freight",
-                                    "FedEx National Freight"
-                                    };
+    public string[] Services { get; } =
+    {
+        "FedEx Europe First International Priority", "FedEx 1Day Freight", "FedEx 2Day", "FedEx 2Day Freight",
+        "FedEx 3Day Freight", "FedEx Express Saver", "FedEx Ground", "FedEx First Overnight",
+        "FedEx Ground Home Delivery", "FedEx International Distribution Freight", "FedEx International Economy",
+        "FedEx International Economy Distribution", "FedEx International Economy Freight",
+        "FedEx International First", "FedEx International Priority", "FedEx International Priority Freight",
+        "FedEx Priority Overnight", "FedEx Ground Economy (SmartPost)", "FedEx Standard Overnight", "FedEx Freight",
+        "FedEx National Freight"
+    };
 
     #endregion
 
@@ -68,7 +55,7 @@ public class FedexServices
             "INTERNATIONAL_PRIORITY" => "FedEx International Priority",
             "INTERNATIONAL_PRIORITY_FREIGHT" => "FedEx International Priority Freight",
             "PRIORITY_OVERNIGHT" => "FedEx Priority Overnight",
-            "SMART_POST" => "FedEx Smart Post",
+            "SMART_POST" => "FedEx Ground Economy (SmartPost)",
             "STANDARD_OVERNIGHT" => "FedEx Standard Overnight",
             "FEDEX_FREIGHT" => "FedEx Freight",
             "FEDEX_NATIONAL_FREIGHT" => "FedEx National Freight",
@@ -102,7 +89,7 @@ public class FedexServices
             "FedEx International Priority" => "INTERNATIONAL_PRIORITY",
             "FedEx International Priority Freight" => "INTERNATIONAL_PRIORITY_FREIGHT",
             "FedEx Priority Overnight" => "PRIORITY_OVERNIGHT",
-            "FedEx Smart Post" => "SMART_POST",
+            "FedEx Ground Economy (SmartPost)" => "SMART_POST",
             "FedEx Standard Overnight" => "STANDARD_OVERNIGHT",
             "FedEx Freight" => "FEDEX_FREIGHT",
             "FedEx National Freight" => "FEDEX_NATIONAL_FREIGHT",
