@@ -5,35 +5,10 @@ namespace Nop.Plugin.Shipping.Fedex;
 public class FedexSettings : ISettings
 {
     /// <summary>
-    /// Gets or sets the FedEx URL
-    /// </summary>
-    public string Url { get; set; }
-
-    /// <summary>
-    /// Gets or sets the access key
-    /// </summary>
-    public string Key { get; set; }
-
-    /// <summary>
-    /// Gets or sets the password
-    /// </summary>
-    public string Password { get; set; }
-
-    /// <summary>
     /// Gets or sets the account number
     /// </summary>
     public string AccountNumber { get; set; }
-
-    /// <summary>
-    /// Gets or sets the meter number
-    /// </summary>
-    public string MeterNumber { get; set; }
-
-    /// <summary>
-    /// Gets or sets preferred dropoff type
-    /// </summary>
-    public DropoffType DropoffType { get; set; }
-
+    
     /// <summary>
     /// Gets or sets a value indicating whether to use residential rates
     /// </summary>
@@ -68,4 +43,29 @@ public class FedexSettings : ISettings
     /// Gets or sets packing type
     /// </summary>
     public PackingType PackingType { get; set; }
+    
+    /// <summary>
+    /// Gets or sets the client ID
+    /// </summary>
+    public string ClientId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the client secret
+    /// </summary>
+    public string ClientSecret { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to use sandbox environment
+    /// </summary>
+    public bool UseSandbox { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to record plugin tracing in log
+    /// </summary>
+    public bool Tracing { get; set; }
+
+    /// <summary>
+    /// Gets or sets a period (in seconds) before the request times out
+    /// </summary>
+    public int? RequestTimeout { get; set; }
 }

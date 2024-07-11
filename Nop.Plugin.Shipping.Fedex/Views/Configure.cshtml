@@ -36,94 +36,77 @@
             <div class="card-body">
                 <div class="form-group row">
                     <div class="col-md-3">
-                        <nop-label asp-for="Url" />
+                        <nop-label asp-for="UseSandbox" />
                     </div>
                     <div class="col-md-9">
-                        <nop-editor asp-for="Url" />
-                        <span asp-validation-for="Url"></span>
+                        <nop-editor asp-for="UseSandbox" />
+                        <span asp-validation-for="UseSandbox"></span>
                     </div>
                 </div>
                 <div class="form-group row">
                     <div class="col-md-3">
-                        <nop-label asp-for="Key" />
+                        <nop-label asp-for="ClientId"/>
                     </div>
                     <div class="col-md-9">
-                        <nop-editor asp-for="Key" />
-                        <span asp-validation-for="Key"></span>
+                        <nop-editor asp-for="ClientId"/>
+                        <span asp-validation-for="ClientId"></span>
                     </div>
                 </div>
                 <div class="form-group row">
                     <div class="col-md-3">
-                        <nop-label asp-for="Password" />
+                        <nop-label asp-for="ClientSecret"/>
                     </div>
                     <div class="col-md-9">
-                        <nop-editor asp-for="Password" />
-                        <span asp-validation-for="Password"></span>
+                        <nop-editor asp-for="ClientSecret"/>
+                        <span asp-validation-for="ClientSecret"></span>
                     </div>
                 </div>
                 <div class="form-group row">
                     <div class="col-md-3">
-                        <nop-label asp-for="AccountNumber" />
+                        <nop-label asp-for="AccountNumber"/>
                     </div>
                     <div class="col-md-9">
-                        <nop-editor asp-for="AccountNumber" />
+                        <nop-editor asp-for="AccountNumber"/>
                         <span asp-validation-for="AccountNumber"></span>
                     </div>
                 </div>
                 <div class="form-group row">
                     <div class="col-md-3">
-                        <nop-label asp-for="MeterNumber" />
+                        <nop-label asp-for="UseResidentialRates"/>
                     </div>
                     <div class="col-md-9">
-                        <nop-editor asp-for="MeterNumber" />
-                        <span asp-validation-for="MeterNumber"></span>
-                    </div>
-                </div>
-                <div class="form-group row">
-                    <div class="col-md-3">
-                        <nop-label asp-for="AvailableDropOffTypes" />
-                    </div>
-                    <div class="col-md-9">
-                        <nop-select asp-for="DropoffType" asp-items="Model.AvailableDropOffTypes" />
-                    </div>
-                </div>
-                <div class="form-group row">
-                    <div class="col-md-3">
-                        <nop-label asp-for="UseResidentialRates" />
-                    </div>
-                    <div class="col-md-9">
-                        <nop-editor asp-for="UseResidentialRates" />
+                        <nop-editor asp-for="UseResidentialRates"/>
                         <span asp-validation-for="UseResidentialRates"></span>
                     </div>
                 </div>
                 <div class="form-group row">
                     <div class="col-md-3">
-                        <nop-label asp-for="ApplyDiscounts" />
+                        <nop-label asp-for="ApplyDiscounts"/>
                     </div>
                     <div class="col-md-9">
-                        <nop-editor asp-for="ApplyDiscounts" />
+                        <nop-editor asp-for="ApplyDiscounts"/>
                         <span asp-validation-for="ApplyDiscounts"></span>
                     </div>
                 </div>
                 <div class="form-group row">
                     <div class="col-md-3">
-                        <nop-label asp-for="AdditionalHandlingCharge" />
+                        <nop-label asp-for="AdditionalHandlingCharge"/>
                     </div>
                     <div class="col-md-9">
-                        <nop-editor asp-for="AdditionalHandlingCharge" />
+                        <nop-editor asp-for="AdditionalHandlingCharge"/>
                         <span asp-validation-for="AdditionalHandlingCharge"></span>
                     </div>
                 </div>
                 <div class="form-group row">
                     <div class="col-md-3">
-                        <nop-label asp-for="AvailableCarrierServices" />
+                        <nop-label asp-for="AvailableCarrierServices"/>
                     </div>
                     <div class="col-md-9">
                         @foreach (var csd in Model.AvailableCarrierServices)
                         {
                             <div class="checkbox">
                                 <label>
-                                    <input type="checkbox" name="CheckedCarrierServices" value="@(csd)" checked="@Model.CarrierServicesOffered.Contains(csd)" />
+                                    <input type="checkbox" name="CheckedCarrierServices" value="@(csd)" checked="@Model.CarrierServicesOffered.Contains(csd)"/>
                                     @csd
                                 </label>
                             </div>
@@ -132,33 +115,42 @@
                 </div>
                 <div class="form-group row">
                     <div class="col-md-3">
-                        <nop-label asp-for="PackingTypeValues" />
+                        <nop-label asp-for="PackingTypeValues"/>
                     </div>
                     <div class="col-md-9">
-                        <nop-select asp-for="PackingType" asp-items="Model.PackingTypeValues" />
+                        <nop-select asp-for="PackingType" asp-items="Model.PackingTypeValues"/>
                     </div>
                 </div>
                 <div class="form-group row" id="pnlPassDimensions">
                     <div class="col-md-3">
-                        <nop-label asp-for="PassDimensions" />
+                        <nop-label asp-for="PassDimensions"/>
                     </div>
                     <div class="col-md-9">
-                        <nop-editor asp-for="PassDimensions" />
+                        <nop-editor asp-for="PassDimensions"/>
                         <span asp-validation-for="PassDimensions"></span>
                     </div>
                 </div>
                 <div class="form-group row" id="pnlPackingPackageVolume">
                     <div class="col-md-3">
-                        <nop-label asp-for="PackingPackageVolume" />
+                        <nop-label asp-for="PackingPackageVolume"/>
                     </div>
                     <div class="col-md-9">
-                        <nop-editor asp-for="PackingPackageVolume" />
+                        <nop-editor asp-for="PackingPackageVolume"/>
                         <span asp-validation-for="PackingPackageVolume"></span>
                     </div>
                 </div>
                 <div class="form-group row">
+                    <div class="col-md-3">
+                        <nop-label asp-for="Tracing"/>
+                    </div>
+                    <div class="col-md-9">
+                        <nop-editor asp-for="Tracing"/>
+                        <span asp-validation-for="Tracing"></span>
+                    </div>
+                </div>
+                <div class="form-group row">
                     <div class="col-md-9 offset-3">
-                        <input type="submit" name="save" class="btn bg-primary" value="@T("Admin.Common.Save")" />
+                        <input type="submit" name="save" class="btn bg-primary" value="@T("Admin.Common.Save")"/>
                     </div>
                 </div>
             </div>

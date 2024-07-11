@@ -1,10 +1,14 @@
 ﻿using System.Diagnostics;
-using FedexRate;
+using System.Globalization;
+using System.Net;
 using Nop.Core;
 using Nop.Core.Domain.Directory;
 using Nop.Core.Domain.Orders;
 using Nop.Core.Domain.Shipping;
-using Nop.Plugin.Shipping.Fedex.Domain;
+using Nop.Core.Http;
+using Nop.Plugin.Shipping.Fedex.API.OAuth;
+using Nop.Plugin.Shipping.Fedex.API.Rates;
+using Nop.Plugin.Shipping.Fedex.API.Track;
 using Nop.Services.Catalog;
 using Nop.Services.Customers;
 using Nop.Services.Directory;
@@ -19,11 +23,14 @@ public class FedexService
 {
     #region Fields
 
+    private static readonly Dictionary<string, string> _fedexServices;
+
     private readonly CurrencySettings _currencySettings;
     private readonly FedexSettings _fedexSettings;
     private readonly ICountryService _countryService;
     private readonly ICurrencyService _currencyService;
     private readonly ICustomerService _customerService;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger _logger;
     private readonly IMeasureService _measureService;
     private readonly IOrderTotalCalculationService _orderTotalCalculationService;
@@ -32,15 +39,46 @@ public class FedexService
     private readonly IStateProvinceService _stateProvinceService;
     private readonly IWorkContext _workContext;
 
+    private string _accessToken;
+
     #endregion
 
     #region Ctor
 
+    static FedexService()
+    {
+        _fedexServices = new Dictionary<string, string>(comparer: StringComparer.InvariantCultureIgnoreCase)
+        {
+            ["EUROPE_FIRST_INTERNATIONAL_PRIORITY"] = "FedEx Europe First International Priority",
+            ["FEDEX_1_DAY_FREIGHT"] = "FedEx 1Day Freight",
+            ["FEDEX_2_DAY"] = "FedEx 2Day",
+            ["FEDEX_2_DAY_FREIGHT"] = "FedEx 2Day Freight",
+            ["FEDEX_3_DAY_FREIGHT"] = "FedEx 3Day Freight",
+            ["FEDEX_EXPRESS_SAVER"] = "FedEx Express Saver",
+            ["FEDEX_GROUND"] = "FedEx Ground",
+            ["FIRST_OVERNIGHT"] = "FedEx First Overnight",
+            ["GROUND_HOME_DELIVERY"] = "FedEx Ground Home Delivery",
+            ["FEDEX_INTERNATIONAL_CONNECT_PLUS"] = "FedEx International Connect Plus",
+            ["INTERNATIONAL_DISTRIBUTION_FREIGHT"] = "FedEx International Distribution Freight",
+            ["INTERNATIONAL_ECONOMY"] = "FedEx International Economy",
+            ["INTERNATIONAL_ECONOMY_DISTRIBUTION"] = "FedEx International Economy Distribution",
+            ["INTERNATIONAL_ECONOMY_FREIGHT"] = "FedEx International Economy Freight",
+            ["INTERNATIONAL_FIRST"] = "FedEx International First",
+            ["INTERNATIONAL_PRIORITY"] = "FedEx International Priority",
+            ["INTERNATIONAL_PRIORITY_FREIGHT"] = "FedEx International Priority Freight",
+            ["PRIORITY_OVERNIGHT"] = "FedEx Priority Overnight",
+            ["SMART_POST"] = "FedEx Ground Economy (SmartPost)",
+            ["STANDARD_OVERNIGHT"] = "FedEx Standard Overnight",
+            ["FEDEX_FREIGHT"] = "FedEx Freight",
+            ["FEDEX_NATIONAL_FREIGHT"] = "FedEx National Freight"
+        };
+    }
     public FedexService(CurrencySettings currencySettings,
         FedexSettings fedexSettings,
         ICountryService countryService,
         ICurrencyService currencyService,
         ICustomerService customerService,
+        IHttpClientFactory httpClientFactory,
         ILogger logger,
         IMeasureService measureService,
         IOrderTotalCalculationService orderTotalCalculationService,
@@ -54,6 +92,7 @@ public class FedexService
         _countryService = countryService;
         _currencyService = currencyService;
         _customerService = customerService;
+        _httpClientFactory = httpClientFactory;
         _logger = logger;
         _measureService = measureService;
         _orderTotalCalculationService = orderTotalCalculationService;
@@ -67,24 +106,23 @@ public class FedexService
 
     #region Utilities
 
-    private async Task<decimal> ConvertChargeToPrimaryCurrencyAsync(Money charge, Currency requestedShipmentCurrency)
+    private async Task<decimal> ConvertChargeToPrimaryCurrencyAsync(double chargeAmount, string chargeCurrency, Currency requestedShipmentCurrency)
     {
-        decimal amount;
         var primaryStoreCurrency = await _currencyService.GetCurrencyByIdAsync(_currencySettings.PrimaryStoreCurrencyId);
 
-        if (primaryStoreCurrency.CurrencyCode.Equals(charge.Currency, StringComparison.InvariantCultureIgnoreCase))
-            amount = charge.Amount;
-        else
-        {
-            var amountCurrency = charge.Currency == requestedShipmentCurrency.CurrencyCode ? requestedShipmentCurrency : await _currencyService.GetCurrencyByCodeAsync(charge.Currency);
+        var amount = new decimal(chargeAmount);
 
-            //ensure the the currency exists; otherwise, presume that it was primary store currency
-            amountCurrency ??= primaryStoreCurrency;
+        if (primaryStoreCurrency.CurrencyCode.Equals(chargeCurrency, StringComparison.InvariantCultureIgnoreCase))
+            return amount;
 
-            amount = await _currencyService.ConvertToPrimaryStoreCurrencyAsync(charge.Amount, amountCurrency);
+        var amountCurrency = chargeCurrency == requestedShipmentCurrency.CurrencyCode ? requestedShipmentCurrency : await _currencyService.GetCurrencyByCodeAsync(chargeCurrency);
 
-            Debug.WriteLine($"ConvertChargeToPrimaryCurrency - from {charge.Amount} ({charge.Currency}) to {amount} ({primaryStoreCurrency.CurrencyCode})");
-        }
+        //ensure the currency exists; otherwise, presume that it was primary store currency
+        amountCurrency ??= primaryStoreCurrency;
+
+        amount = await _currencyService.ConvertToPrimaryStoreCurrencyAsync(amount, amountCurrency);
+
+        Debug.WriteLine($"ConvertChargeToPrimaryCurrency - from {chargeAmount} ({chargeCurrency}) to {amount} ({primaryStoreCurrency.CurrencyCode})");
 
         return amount;
     }
@@ -98,25 +136,26 @@ public class FedexService
     /// A task that represents the asynchronous operation
     /// The task result contains the dimensions values
     /// </returns>
-    private async Task<(decimal width, decimal length, decimal height)> GetDimensionsAsync(IList<GetShippingOptionRequest.PackageItem> items, int minRate = 1)
+    private async Task<(int width, int length, int height)> GetDimensionsAsync(IList<GetShippingOptionRequest.PackageItem> items, int minRate = 1)
     {
         var measureDimension = await _measureService.GetMeasureDimensionBySystemKeywordAsync(FedexShippingDefaults.MEASURE_DIMENSION_SYSTEM_KEYWORD) ??
             throw new NopException($"FedEx shipping service. Could not load \"{FedexShippingDefaults.MEASURE_DIMENSION_SYSTEM_KEYWORD}\" measure dimension");
 
         var (width, length, height) = await _shippingService.GetDimensionsAsync(items, true);
-        width = await convertAndRoundDimensionAsync(width);
-        length = await convertAndRoundDimensionAsync(length);
-        height = await convertAndRoundDimensionAsync(height);
+        var rezWidth = await convertAndRoundDimension(width);
+        var rezLength = await convertAndRoundDimension(length);
+        var rezHeight = await convertAndRoundDimension(height);
 
-        return (width, length, height);
+        return (rezWidth, rezLength, rezHeight);
 
         #region Local functions
 
-        async Task<decimal> convertAndRoundDimensionAsync(decimal dimension)
+        async Task<int> convertAndRoundDimension(decimal dimension)
         {
             dimension = await _measureService.ConvertFromPrimaryMeasureDimensionAsync(dimension, measureDimension);
-            dimension = Convert.ToInt32(Math.Ceiling(dimension));
-            return Math.Max(dimension, minRate);
+            var rezDimension = Convert.ToInt32(Math.Ceiling(dimension));
+
+            return Math.Max(rezDimension, minRate);
         }
 
         #endregion
@@ -130,7 +169,7 @@ public class FedexService
     /// A task that represents the asynchronous operation
     /// The task result contains the dimensions values
     /// </returns>
-    private async Task<(decimal width, decimal length, decimal height)> GetDimensionsForSingleItemAsync(ShoppingCartItem item)
+    private async Task<(int width, int length, int height)> GetDimensionsForSingleItemAsync(ShoppingCartItem item)
     {
         var product = await _productService.GetProductByIdAsync(item.ProductId);
 
@@ -182,46 +221,40 @@ public class FedexService
     }
 
     /// <summary>
+    /// Get access token
+    /// </summary>
+    /// <returns>The asynchronous task whose result contains access token</returns>
+    private async Task<string> GetAccessTokenAsync()
+    {
+        if (!string.IsNullOrEmpty(_accessToken))
+            return _accessToken;
+
+        if (string.IsNullOrEmpty(_fedexSettings.ClientId))
+            throw new NopException("Client ID is not set");
+
+        if (string.IsNullOrEmpty(_fedexSettings.ClientSecret))
+            throw new NopException("Client secret is not set");
+
+        var client = new OAuthClient(_httpClientFactory.CreateClient(NopHttpDefaults.DefaultHttpClient), _fedexSettings);
+
+        var response = await client.GenerateTokenAsync();
+        _accessToken = response.Access_token;
+
+        return _accessToken;
+    }
+
+    /// <summary>
     /// Create request details to track shipment
     /// </summary>
     /// <param name="trackingNumber">Tracking number</param>
     /// <returns>Track request details</returns>
-    private FedexTracking.TrackRequest CreateTrackRequest(string trackingNumber)
+    private async Task<BaseProcessOutputVO_TrackingNumber> CreateTrackRequestAsync(string trackingNumber)
     {
-        return new FedexTracking.TrackRequest
-        {
-            WebAuthenticationDetail = new FedexTracking.WebAuthenticationDetail
-            {
-                UserCredential = new FedexTracking.WebAuthenticationCredential
-                {
-                    Key = _fedexSettings.Key, // Replace "XXX" with the Key
-                    Password = _fedexSettings.Password // Replace "XXX" with the Password
-                }
-            },
-            ClientDetail = new FedexTracking.ClientDetail
-            {
-                AccountNumber = _fedexSettings.AccountNumber, // Replace "XXX" with client's account number
-                MeterNumber = _fedexSettings.MeterNumber // Replace "XXX" with client's meter number
-            },
-            TransactionDetail = new FedexTracking.TransactionDetail
-            {
-                CustomerTransactionId = "***nopCommerce v16 Request using VC#***"
-            },
-            //creates the Version element with all child elements populated from the wsdl
-            Version = new FedexTracking.VersionId(),
-            //tracking information
-            SelectionDetails = new[]
-                {
-                    new FedexTracking.TrackSelectionDetail
-                    {
-                        PackageIdentifier = new FedexTracking.TrackPackageIdentifier
-                        {
-                            Value = trackingNumber,
-                            Type = FedexTracking.TrackIdentifierType.TRACKING_NUMBER_OR_DOORTAG
-                        }
-                    }
-                }
-        };
+        var client = new TrackClient(_httpClientFactory.CreateClient(NopHttpDefaults.DefaultHttpClient), _fedexSettings, await GetAccessTokenAsync());
+
+        var trackResponse = await client.TrackAsync(trackingNumber, await GetAccessTokenAsync());
+
+        return trackResponse;
     }
 
     /// <summary>
@@ -232,34 +265,29 @@ public class FedexService
     /// <param name="height">Height</param>
     /// <param name="weight">Weight</param>
     /// <param name="orderSubTotal"></param>
-    /// <param name="sequenceNumber">Number</param>
     /// <param name="currencyCode">Currency code</param>
     /// <returns>Package details</returns>
-    private RequestedPackageLineItem CreatePackage(decimal width, decimal length, decimal height, decimal weight, decimal orderSubTotal, string sequenceNumber, string currencyCode)
+    private RequestedPackageLineItem CreatePackage(int width, int length, int height, decimal weight, decimal orderSubTotal, string currencyCode)
     {
         return new RequestedPackageLineItem
         {
-            SequenceNumber = sequenceNumber, // package sequence number            
-            GroupPackageCount = "1",
-            Weight = new Weight
+            GroupPackageCount = 1,
+            Weight = new()
             {
-                Units = WeightUnits.LB,
-                UnitsSpecified = true,
-                Value = weight,
-                ValueSpecified = true
+                Units = "LB",
+                Value = (double)weight,
             }, // package weight
 
-            Dimensions = new Dimensions
+            Dimensions = new()
             {
-                Length = _fedexSettings.PassDimensions ? length.ToString() : "0",
-                Width = _fedexSettings.PassDimensions ? width.ToString() : "0",
-                Height = _fedexSettings.PassDimensions ? height.ToString() : "0",
-                Units = LinearUnits.IN,
-                UnitsSpecified = true
+                Length = _fedexSettings.PassDimensions ? length : 0,
+                Width = _fedexSettings.PassDimensions ? width : 0,
+                Height = _fedexSettings.PassDimensions ? height : 0,
+                Units = "IN",
             }, // package dimensions
-            InsuredValue = new Money
+            DeclaredValue = new Money
             {
-                Amount = orderSubTotal,
+                Amount = (double)orderSubTotal,
                 Currency = currencyCode
             } // insured value
         };
@@ -273,56 +301,28 @@ public class FedexService
     /// A task that represents the asynchronous operation
     /// The task result contains the rate request details
     /// </returns>
-    private async Task<(RateRequest rateRequest, Currency requestedShipmentCurrency)> CreateRateRequestAsync(GetShippingOptionRequest shippingOptionRequest)
+    private async Task<(Full_Schema_Quote_Rate rateRequest, Currency requestedShipmentCurrency)> CreateRateRequestAsync(GetShippingOptionRequest shippingOptionRequest)
     {
         // Build the RateRequest
-        var request = new RateRequest
+        var request = new Full_Schema_Quote_Rate
         {
-            WebAuthenticationDetail = new WebAuthenticationDetail
-            {
-                UserCredential = new WebAuthenticationCredential
-                {
-                    Key = _fedexSettings.Key,
-                    Password = _fedexSettings.Password
-                }
-            },
-
-            ClientDetail = new ClientDetail
-            {
-                AccountNumber = _fedexSettings.AccountNumber,
-                MeterNumber = _fedexSettings.MeterNumber
-            },
-
-            TransactionDetail = new TransactionDetail
-            {
-                CustomerTransactionId = "***Rate Available Services v16 Request - nopCommerce***" // This is a reference field for the customer.  Any value can be used and will be provided in the response.
-            },
-
-            Version = new VersionId(), // WSDL version information, value is automatically set from wsdl            
-
-            ReturnTransitAndCommit = true,
-            ReturnTransitAndCommitSpecified = true,
-            // Insert the Carriers you would like to see the rates for
-            CarrierCodes = new[] {
-                CarrierCodeType.FDXE,
-                CarrierCodeType.FDXG,
-                CarrierCodeType.FXSP
-            }
+            AccountNumber = new AccountNumber { Value = _fedexSettings.AccountNumber },
+            RateRequestControlParameters = new() { ReturnTransitTimes = true },
+            CarrierCodes = new List<string> { "FDXE", "FDXG", "FXSP" }
         };
 
-        //TODO we should use getShippingOptionRequest.Items.GetQuantity() method to get subtotal
         var (_, _, _, subTotalWithDiscountBase, _) = await _orderTotalCalculationService.GetShoppingCartSubTotalAsync(
             shippingOptionRequest.Items.Select(x => x.ShoppingCartItem).ToList(),
             false);
 
-        request.RequestedShipment = new RequestedShipment();
-
-        if (_fedexSettings.CarrierServicesOffered.Contains("SMART_POST"))
-            request.RequestedShipment.SmartPostDetail = new SmartPostShipmentDetail
+        request.RequestedShipment = new RequestedShipment
+        {
+            RateRequestType = new List<RateRequestType>
             {
-                IndiciaSpecified = true,
-                Indicia = SmartPostIndiciaType.PARCEL_SELECT
-            };
+                RateRequestType.LIST,
+                RateRequestType.PREFERRED
+            }
+        };
 
         SetOrigin(request, shippingOptionRequest);
         await SetDestinationAsync(request, shippingOptionRequest);
@@ -396,7 +396,7 @@ public class FedexService
         #endregion
     }
 
-    private async Task<IList<ShippingOption>> ParseResponseAsync(RateReply reply, Currency requestedShipmentCurrency)
+    private async Task<IList<ShippingOption>> ParseResponseAsync(BaseProcessOutputVO reply, Currency requestedShipmentCurrency)
     {
         var result = new List<ShippingOption>();
 
@@ -405,10 +405,10 @@ public class FedexService
         foreach (var rateDetail in reply.RateReplyDetails)
         {
             var shippingOption = new ShippingOption();
-            var serviceName = FedexServices.GetServiceName(rateDetail.ServiceType.ToString());
+            var serviceName = GetFedExServiceName(rateDetail.ServiceType);
 
             // Skip the current service if services are selected and this service hasn't been selected
-            if (!string.IsNullOrEmpty(_fedexSettings.CarrierServicesOffered) && !_fedexSettings.CarrierServicesOffered.Contains(rateDetail.ServiceType.ToString()))
+            if (!string.IsNullOrEmpty(_fedexSettings.CarrierServicesOffered) && !_fedexSettings.CarrierServicesOffered.Contains(rateDetail.ServiceType))
                 continue;
 
             Debug.WriteLine("ServiceType: " + rateDetail.ServiceType);
@@ -418,32 +418,32 @@ public class FedexService
 
                 foreach (var shipmentDetail in rateDetail.RatedShipmentDetails)
                 {
-                    Debug.WriteLine("RateType : " + shipmentDetail.ShipmentRateDetail.RateType);
+                    Debug.WriteLine("RateType : " + shipmentDetail.RateType);
                     Debug.WriteLine("Total Billing Weight : " + shipmentDetail.ShipmentRateDetail.TotalBillingWeight.Value);
-                    Debug.WriteLine("Total Base Charge : " + shipmentDetail.ShipmentRateDetail.TotalBaseCharge.Amount);
-                    Debug.WriteLine("Total Discount : " + shipmentDetail.ShipmentRateDetail.TotalFreightDiscounts.Amount);
-                    Debug.WriteLine("Total Surcharges : " + shipmentDetail.ShipmentRateDetail.TotalSurcharges.Amount);
-                    Debug.WriteLine($"Net Charge : {shipmentDetail.ShipmentRateDetail.TotalNetCharge.Amount} ({shipmentDetail.ShipmentRateDetail.TotalNetCharge.Currency})");
+                    Debug.WriteLine("Total Base Charge : " + shipmentDetail.TotalBaseCharge);
+                    Debug.WriteLine("Total Discount : " + shipmentDetail.TotalDiscounts);
+                    Debug.WriteLine("Total Surcharges : " + shipmentDetail.ShipmentRateDetail.TotalSurcharges);
+                    Debug.WriteLine($"Net Charge : {shipmentDetail.TotalNetCharge}");
                     Debug.WriteLine("*********");
 
-                    // Get discounted rates if option is selected
+                    // get discounted rates if option is selected
                     if (_fedexSettings.ApplyDiscounts &
-                        (shipmentDetail.ShipmentRateDetail.RateType == ReturnedRateType.PAYOR_ACCOUNT_PACKAGE ||
-                        shipmentDetail.ShipmentRateDetail.RateType == ReturnedRateType.PAYOR_ACCOUNT_SHIPMENT))
+                        (shipmentDetail.RateType == RatedShipmentDetailRateType.ACCOUNT))
                     {
-                        var amount = await ConvertChargeToPrimaryCurrencyAsync(shipmentDetail.ShipmentRateDetail.TotalNetCharge, requestedShipmentCurrency);
+                        var amount = await ConvertChargeToPrimaryCurrencyAsync(shipmentDetail.TotalNetCharge, shipmentDetail.ShipmentRateDetail.Currency, requestedShipmentCurrency);
                         shippingOption.Rate = amount + _fedexSettings.AdditionalHandlingCharge;
                         break;
                     }
 
-                    if (shipmentDetail.ShipmentRateDetail.RateType == ReturnedRateType.PAYOR_LIST_PACKAGE ||
-                        shipmentDetail.ShipmentRateDetail.RateType == ReturnedRateType.PAYOR_LIST_SHIPMENT) // Get List Rates (not discount rates)
+                    // get List Rates (not discount rates)
+                    if (shipmentDetail.RateType == RatedShipmentDetailRateType.LIST)
                     {
-                        var amount = await ConvertChargeToPrimaryCurrencyAsync(shipmentDetail.ShipmentRateDetail.TotalNetCharge, requestedShipmentCurrency);
+                        var amount = await ConvertChargeToPrimaryCurrencyAsync(shipmentDetail.TotalNetCharge, shipmentDetail.ShipmentRateDetail.Currency, requestedShipmentCurrency);
                         shippingOption.Rate = amount + _fedexSettings.AdditionalHandlingCharge;
                         break;
                     }
                 }
+
                 result.Add(shippingOption);
             }
             Debug.WriteLine("**********************************************************");
@@ -452,25 +452,21 @@ public class FedexService
         return result;
     }
 
-    private async Task SetDestinationAsync(RateRequest request, GetShippingOptionRequest getShippingOptionRequest)
+    private async Task SetDestinationAsync(Full_Schema_Quote_Rate request, GetShippingOptionRequest getShippingOptionRequest)
     {
-        request.RequestedShipment.Recipient = new Party
+        request.RequestedShipment.Recipient = new RateParty
         {
-            Address = new Address()
+            Address = new RateAddress()
         };
 
         if (_fedexSettings.UseResidentialRates)
-        {
             request.RequestedShipment.Recipient.Address.Residential = true;
-            request.RequestedShipment.Recipient.Address.ResidentialSpecified = true;
-        }
 
-        request.RequestedShipment.Recipient.Address.StreetLines = new[] { getShippingOptionRequest.ShippingAddress.Address1 };
         request.RequestedShipment.Recipient.Address.City = getShippingOptionRequest.ShippingAddress.City;
 
         var recipientCountryCode = (await _countryService.GetCountryByAddressAsync(getShippingOptionRequest.ShippingAddress))?.TwoLetterIsoCode ?? string.Empty;
 
-        if (await _stateProvinceService.GetStateProvinceByAddressAsync(getShippingOptionRequest.ShippingAddress) is StateProvince stateProvince &&
+        if (await _stateProvinceService.GetStateProvinceByAddressAsync(getShippingOptionRequest.ShippingAddress) is { } stateProvince &&
             IncludeStateProvinceCode(recipientCountryCode))
             request.RequestedShipment.Recipient.Address.StateOrProvinceCode = stateProvince.Abbreviation;
         else
@@ -488,17 +484,17 @@ public class FedexService
     /// <param name="orderSubTotal"></param>
     /// <param name="currencyCode">Currency code</param>
     /// <returns>A task that represents the asynchronous operation</returns>
-    private async Task SetIndividualPackageLineItemsAsync(RateRequest request, GetShippingOptionRequest getShippingOptionRequest, decimal orderSubTotal, string currencyCode)
+    private async Task SetIndividualPackageLineItemsAsync(Full_Schema_Quote_Rate request, GetShippingOptionRequest getShippingOptionRequest, decimal orderSubTotal, string currencyCode)
     {
         var (length, height, width) = await GetDimensionsAsync(getShippingOptionRequest.Items);
         var weight = await GetWeightAsync(getShippingOptionRequest);
 
         if (!IsPackageTooHeavy(weight) && !IsPackageTooLarge(length, height, width))
         {
-            request.RequestedShipment.PackageCount = "1";
+            request.RequestedShipment.TotalPackageCount = 1;
 
-            var package = CreatePackage(width, length, height, weight, orderSubTotal, "1", currencyCode);
-            package.GroupPackageCount = "1";
+            var package = CreatePackage(width, length, height, weight, orderSubTotal, currencyCode);
+            package.GroupPackageCount = 1;
 
             request.RequestedShipment.RequestedPackageLineItems = new[] { package };
         }
@@ -524,10 +520,10 @@ public class FedexService
 
             var orderSubTotal2 = orderSubTotal / totalPackages;
 
-            request.RequestedShipment.PackageCount = totalPackages.ToString();
+            request.RequestedShipment.TotalPackageCount = totalPackages;
 
             request.RequestedShipment.RequestedPackageLineItems = Enumerable.Range(1, totalPackages - 1)
-                .Select(i => CreatePackage(width, length, height, weight, orderSubTotal2, i.ToString(), currencyCode)).ToArray();
+                .Select(_ => CreatePackage(width, length, height, weight, orderSubTotal2, currencyCode)).ToArray();
         }
     }
 
@@ -539,7 +535,7 @@ public class FedexService
     /// <param name="orderSubTotal"></param>
     /// <param name="currencyCode">Currency code</param>
     /// <returns>A task that represents the asynchronous operation</returns>
-    private async Task SetIndividualPackageLineItemsCubicRootDimensionsAsync(RateRequest request, GetShippingOptionRequest getShippingOptionRequest, decimal orderSubTotal, string currencyCode)
+    private async Task SetIndividualPackageLineItemsCubicRootDimensionsAsync(Full_Schema_Quote_Rate request, GetShippingOptionRequest getShippingOptionRequest, decimal orderSubTotal, string currencyCode)
     {
         //From FedEx Guide (Ground):
         //Dimensional weight is based on volume (the amount of space a package
@@ -574,16 +570,14 @@ public class FedexService
         //  1 package  25x25x25 (60 lbs)      = $71.70    71.70
 
         var totalPackagesDims = 1;
-        decimal length;
-        decimal height;
-        decimal width;
+        int length;
+        int height;
+        int width;
 
         if (getShippingOptionRequest.Items.Count == 1 && getShippingOptionRequest.Items[0].GetQuantity() == 1)
         {
-            var sci = getShippingOptionRequest.Items[0].ShoppingCartItem;
-
             //get dimensions and weight of the single cubic size of package
-            var item = getShippingOptionRequest.Items.FirstOrDefault().ShoppingCartItem;
+            var item = getShippingOptionRequest.Items.First().ShoppingCartItem;
             (width, length, height) = await GetDimensionsForSingleItemAsync(item);
         }
         else
@@ -598,6 +592,7 @@ public class FedexService
                 var (itemWidth, itemLength, itemHeight) = await GetDimensionsForSingleItemAsync(item.ShoppingCartItem);
                 return item.GetQuantity() * itemWidth * itemLength * itemHeight;
             });
+
             if (totalVolume > decimal.Zero)
             {
                 //use default value (in cubic inches) if not specified
@@ -634,10 +629,10 @@ public class FedexService
         var orderSubTotalPerPackage = orderSubTotal / totalPackages;
         var weightPerPackage = weight / totalPackages;
 
-        request.RequestedShipment.PackageCount = totalPackages.ToString();
+        request.RequestedShipment.TotalPackageCount = totalPackages;
 
         request.RequestedShipment.RequestedPackageLineItems = Enumerable.Range(1, totalPackages)
-                .Select(i => CreatePackage(width, length, height, weightPerPackage, orderSubTotalPerPackage, i.ToString(), currencyCode))
+                .Select(_ => CreatePackage(width, length, height, weightPerPackage, orderSubTotalPerPackage, currencyCode))
                 .ToArray();
     }
 
@@ -648,14 +643,14 @@ public class FedexService
     /// <param name="getShippingOptionRequest">Shipping option request</param>
     /// <param name="currencyCode">Currency code</param>
     /// <returns>A task that represents the asynchronous operation</returns>
-    private async Task SetIndividualPackageLineItemsOneItemPerPackageAsync(RateRequest request, GetShippingOptionRequest getShippingOptionRequest, string currencyCode)
+    private async Task SetIndividualPackageLineItemsOneItemPerPackageAsync(Full_Schema_Quote_Rate request, GetShippingOptionRequest getShippingOptionRequest, string currencyCode)
     {
         // Rate request setup - each Shopping Cart Item is a separate package
         var i = 1;
         var items = getShippingOptionRequest.Items;
         var totalItems = items.Sum(x => x.GetQuantity());
 
-        request.RequestedShipment.PackageCount = totalItems.ToString();
+        request.RequestedShipment.TotalPackageCount = totalItems;
         request.RequestedShipment.RequestedPackageLineItems = await getShippingOptionRequest.Items.SelectManyAwait<GetShippingOptionRequest.PackageItem, RequestedPackageLineItem>(async packageItem =>
         {
             //get dimensions and weight of the single item
@@ -663,68 +658,50 @@ public class FedexService
             var weight = await GetWeightForSingleItemAsync(packageItem.ShoppingCartItem);
 
             var product = await _productService.GetProductByIdAsync(packageItem.ShoppingCartItem.ProductId);
-            var package = CreatePackage(width, length, height, weight, product.Price, (i + 1).ToString(), currencyCode);
-            package.GroupPackageCount = "1";
+            var package = CreatePackage(width, length, height, weight, product.Price, currencyCode);
+            package.GroupPackageCount = 1;
 
             var packs = Enumerable.Range(i, packageItem.GetQuantity())
-                .Select(j => CreatePackage(width, length, height, weight, product.Price, j.ToString(), currencyCode)).ToArray();
+                .Select(_ => CreatePackage(width, length, height, weight, product.Price, currencyCode)).ToArray();
             i += packageItem.GetQuantity();
 
             return packs;
         }).ToArrayAsync();
     }
 
-    private void SetPayment(RateRequest request)
+    private void SetPayment(Full_Schema_Quote_Rate request)
     {
-        request.RequestedShipment.ShippingChargesPayment = new Payment
+        request.RequestedShipment.CustomsClearanceDetail = new RequestedShipmentCustomsClearanceDetail
         {
-            PaymentType = PaymentType.SENDER, // Payment options are RECIPIENT, SENDER, THIRD_PARTY
-            PaymentTypeSpecified = true,
-            Payor = new Payor
+            DutiesPayment = new Payment
             {
-                ResponsibleParty = new Party
+                PaymentType = PaymentType.SENDER, // Payment options are RECIPIENT, SENDER, THIRD_PARTY
+                Payor = new Payor
                 {
-                    AccountNumber = _fedexSettings.AccountNumber
+                    ResponsibleParty = new ResponsibleParty
+                    {
+                        AccountNumber = new AccountNumber
+                        {
+                            Value = _fedexSettings.AccountNumber
+                        }
+                    }
                 }
             }
-        }; // Payment Information
+        };
     }
 
-    private void SetShipmentDetails(RateRequest request, decimal orderSubTotal, string currencyCode)
+    private void SetShipmentDetails(Full_Schema_Quote_Rate request, decimal orderSubTotal, string currencyCode)
     {
-        //set drop off type
-        request.RequestedShipment.DropoffType = _fedexSettings.DropoffType switch
-        {
-            DropoffType.BusinessServiceCenter => FedexRate.DropoffType.BUSINESS_SERVICE_CENTER,
-            DropoffType.DropBox => FedexRate.DropoffType.DROP_BOX,
-            DropoffType.RegularPickup => FedexRate.DropoffType.REGULAR_PICKUP,
-            DropoffType.RequestCourier => FedexRate.DropoffType.REQUEST_COURIER,
-            DropoffType.Station => FedexRate.DropoffType.STATION,
-            _ => FedexRate.DropoffType.BUSINESS_SERVICE_CENTER
-        };
-
-        request.RequestedShipment.TotalInsuredValue = new Money
-        {
-            Amount = orderSubTotal,
-            Currency = currencyCode
-        };
-
-        //Saturday pickup is available for certain FedEx Express U.S. service types:
+        //saturday pickup is available for certain FedEx Express U.S. service types:
         //http://www.fedex.com/us/developer/product/WebServices/MyWebHelp/Services/Options/c_SaturdayShipAndDeliveryServiceDetails.html
-        //If the customer orders on a Saturday, the rate calculation will use Saturday as the shipping date, and the rates will include a Saturday pickup surcharge
-        //More info: https://www.nopcommerce.com/boards/t/27348/fedex-rate-can-be-excessive-for-express-methods-if-calculated-on-a-saturday.aspx
+        //if the customer orders on a Saturday, the rate calculation will use Saturday as the shipping date, and the rates will include a Saturday pickup surcharge
+        //more info: https://www.nopcommerce.com/boards/t/27348/fedex-rate-can-be-excessive-for-express-methods-if-calculated-on-a-saturday.aspx
         var shipTimestamp = DateTime.Now;
+
         if (shipTimestamp.DayOfWeek == DayOfWeek.Saturday)
             shipTimestamp = shipTimestamp.AddDays(2);
-        request.RequestedShipment.ShipTimestamp = shipTimestamp; // Shipping date and time
-        request.RequestedShipment.ShipTimestampSpecified = true;
 
-        request.RequestedShipment.RateRequestTypes = new[] {
-            RateRequestType.PREFERRED,
-            RateRequestType.LIST
-        };
-        //request.RequestedShipment.PackageDetail = RequestedPackageDetailType.INDIVIDUAL_PACKAGES;
-        //request.RequestedShipment.PackageDetailSpecified = true;
+        request.RequestedShipment.ShipDateStamp = shipTimestamp.ToString("yyyy-MM-dd"); // Shipping date and time
 
         //for India domestic shipping add additional details
         if (request.RequestedShipment.Shipper.Address.CountryCode.Equals("IN", StringComparison.InvariantCultureIgnoreCase) &&
@@ -733,39 +710,23 @@ public class FedexService
             var commodity = new Commodity
             {
                 Name = "1",
-                NumberOfPieces = "1",
+                NumberOfPieces = 1,
                 CustomsValue = new Money
                 {
-                    Amount = orderSubTotal,
-                    AmountSpecified = true,
+                    Amount = (double)orderSubTotal,
                     Currency = currencyCode
                 }
             };
 
-            request.RequestedShipment.CustomsClearanceDetail = new CustomsClearanceDetail
+            request.RequestedShipment.CustomsClearanceDetail = new RequestedShipmentCustomsClearanceDetail
             {
                 CommercialInvoice = new CommercialInvoice
                 {
-                    Purpose = PurposeOfShipmentType.SOLD,
-                    PurposeSpecified = true
+                    ShipmentPurpose = CommercialInvoiceShipmentPurpose.SOLD
                 },
                 Commodities = new[] { commodity }
             };
         }
-    }
-
-    /// <summary>
-    /// Get tracking info
-    /// </summary>
-    /// <param name="request">Request details</param>
-    /// <returns>The asynchronous task whose result contains the tracking info</returns>
-    private async Task<FedexTracking.TrackReply> TrackAsync(FedexTracking.TrackRequest request)
-    {
-        //initialize the service
-        using var service = new FedexTracking.TrackPortTypeClient(FedexTracking.TrackPortTypeClient.EndpointConfiguration.TrackServicePort, _fedexSettings.Url);
-        var trackResponse = await service.trackAsync(request);
-
-        return trackResponse.TrackReply;
     }
 
     private static bool IsPackageTooHeavy(decimal weight)
@@ -784,17 +745,16 @@ public class FedexService
                 countryCode.Equals("CA", StringComparison.InvariantCultureIgnoreCase));
     }
 
-    private static void SetOrigin(RateRequest request, GetShippingOptionRequest getShippingOptionRequest)
+    private static void SetOrigin(Full_Schema_Quote_Rate request, GetShippingOptionRequest getShippingOptionRequest)
     {
-        request.RequestedShipment.Shipper = new Party
+        request.RequestedShipment.Shipper = new RateParty
         {
-            Address = new Address()
+            Address = new RateAddress()
         };
 
         if (getShippingOptionRequest.CountryFrom is null)
             throw new Exception("FROM country is not specified");
 
-        request.RequestedShipment.Shipper.Address.StreetLines = new[] { getShippingOptionRequest.AddressFrom };
         request.RequestedShipment.Shipper.Address.City = getShippingOptionRequest.CityFrom;
         if (IncludeStateProvinceCode(getShippingOptionRequest.CountryFrom.TwoLetterIsoCode))
         {
@@ -815,6 +775,37 @@ public class FedexService
     #region Methods
 
     /// <summary>
+    /// FedEx services string names
+    /// </summary>
+    public static IList<string> GetAllFedExServicesName()
+    {
+        return _fedexServices.Values.ToList();
+    }
+
+    /// <summary>
+    /// Gets the text name based on the ServiceID (in FedEx Reply)
+    /// </summary>
+    /// <param name="serviceId">ID of the carrier service -from FedEx</param>
+    /// <returns>String representation of the carrier service</returns>
+    public static string GetFedExServiceName(string serviceId)
+    {
+        return !_fedexServices.ContainsKey(serviceId) ? "UNKNOWN" : _fedexServices[serviceId];
+    }
+
+    /// <summary>
+    /// Gets the ServiceId based on the text name
+    /// </summary>
+    /// <param name="serviceName">Name of the carrier service (based on the text name returned from GetServiceName())</param>
+    /// <returns>Service ID as used by FedEx</returns>
+    public static string GetFedExServiceId(string serviceName)
+    {
+        var rez = _fedexServices.FirstOrDefault(p =>
+            p.Value.Equals(serviceName, StringComparison.InvariantCultureIgnoreCase));
+
+        return string.IsNullOrEmpty(rez.Key) ? "UNKNOWN" : rez.Key;
+    }
+
+    /// <summary>
     /// Gets all events for a tracking number
     /// </summary>
     /// <param name="trackingNumber">The tracking number to track</param>
@@ -826,24 +817,21 @@ public class FedexService
     {
         try
         {
-            //build the TrackRequest
-            var request = CreateTrackRequest(trackingNumber);
-
             //this is the call to the web service passing in a TrackRequest and returning a TrackReply
-            var reply = await TrackAsync(request);
+            var reply = await CreateTrackRequestAsync(trackingNumber);
 
-            //parse response
-            if (new[] { FedexTracking.NotificationSeverityType.SUCCESS, FedexTracking.NotificationSeverityType.NOTE, FedexTracking.NotificationSeverityType.WARNING }.Contains(reply.HighestSeverity)) // check if the call was successful
-                return reply.CompletedTrackDetails?
-                    .SelectMany(completedTrackDetails => completedTrackDetails.TrackDetails?
-                        .SelectMany(trackDetails => trackDetails.Events?.Where(trackEvent => trackEvent != null)
+            if (reply.Alerts?.Any(p => p.AlertType != API.Track.AlertType.NOTE) ?? false)
+                throw new NopException(reply.Alerts.First(p => p.AlertType == API.Track.AlertType.WARNING).Message);
+
+            return reply.CompleteTrackResults?
+                    .SelectMany(completedTrackDetails => completedTrackDetails.TrackResults?
                             .Select(trackEvent => new ShipmentStatusEvent
                             {
-                                EventName = $"{trackEvent.EventDescription} ({trackEvent.EventType})",
-                                Location = trackEvent.Address?.City,
-                                CountryCode = trackEvent.Address?.CountryCode,
-                                Date = trackEvent.TimestampSpecified ? trackEvent.Timestamp as DateTime? : null
-                            })))
+                                EventName = $"{trackEvent.ReasonDetail.Description} ({trackEvent.ReasonDetail.Type})",
+                                Location = trackEvent.LastUpdatedDestinationAddress.City,
+                                CountryCode = trackEvent.LastUpdatedDestinationAddress.CountryCode,
+                                Date = trackEvent.DateAndTimes?.Select(dt => DateTime.Parse(dt.DateTime, CultureInfo.InvariantCulture)).FirstOrDefault()
+                            }))
                     .ToList();
         }
         catch (Exception exception)
@@ -867,37 +855,30 @@ public class FedexService
     {
         var response = new GetShippingOptionResponse();
 
+        //create request details
         var (request, requestedShipmentCurrency) = await CreateRateRequestAsync(shippingOptionRequest);
 
-        var service = new RatePortTypeClient(RatePortTypeClient.EndpointConfiguration.RateServicePort, _fedexSettings.Url);
+        var clientHandler = new HttpClientHandler { AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate };
+        var httpClient = new HttpClient(clientHandler);
+
+        var client = new RateClient(httpClient, _fedexSettings, await GetAccessTokenAsync());
 
         try
         {
-            // This is the call to the web service passing in a RateRequest and returning a RateReply
-            var rateResult = await service.getRatesAsync(request);
-            var reply = rateResult.RateReply;
+            //try to get response details
 
-            if (new[] { NotificationSeverityType.SUCCESS, NotificationSeverityType.NOTE, NotificationSeverityType.WARNING }.Contains(reply.HighestSeverity)) // check if the call was successful
-            {
-                if (reply.RateReplyDetails != null)
-                {
-                    var shippingOptions = await ParseResponseAsync(reply, requestedShipmentCurrency);
-                    foreach (var shippingOption in shippingOptions)
-                        response.ShippingOptions.Add(shippingOption);
-                }
-                else
-                {
-                    if (reply.Notifications?.Length > 0 && !string.IsNullOrEmpty(reply.Notifications[0].Message))
-                        response.AddError($"{reply.Notifications[0].Message} (code: {reply.Notifications[0].Code})");
-                    else
-                        response.AddError("Could not get reply from shipping server");
-                }
-            }
-            else
-            {
-                Debug.WriteLine(reply.Notifications[0].Message);
-                response.AddError(reply.Notifications[0].Message);
-            }
+            var reply = await client.ProcessRateAsync(request, await GetAccessTokenAsync());
+
+            if (reply.Alerts?.Any() ?? false)
+                throw new NopException(reply.Alerts.First().Message);
+
+            if (reply.RateReplyDetails == null)
+                return response;
+
+            var shippingOptions = await ParseResponseAsync(reply, requestedShipmentCurrency);
+
+            foreach (var shippingOption in shippingOptions)
+                response.ShippingOptions.Add(shippingOption);
 
             return response;
         }

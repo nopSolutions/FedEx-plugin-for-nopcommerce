@@ -11,22 +11,10 @@ public record FedexShippingModel : BaseNopModel
         CarrierServicesOffered = new List<string>();
         AvailableCarrierServices = new List<string>();
     }
-
-    [NopResourceDisplayName("Plugins.Shipping.Fedex.Fields.Url")]
-    public string Url { get; set; }
-
-    [NopResourceDisplayName("Plugins.Shipping.Fedex.Fields.Key")]
-    public string Key { get; set; }
-
-    [NopResourceDisplayName("Plugins.Shipping.Fedex.Fields.Password")]
-    public string Password { get; set; }
-
+    
     [NopResourceDisplayName("Plugins.Shipping.Fedex.Fields.AccountNumber")]
     public string AccountNumber { get; set; }
-
-    [NopResourceDisplayName("Plugins.Shipping.Fedex.Fields.MeterNumber")]
-    public string MeterNumber { get; set; }
-
+    
     [NopResourceDisplayName("Plugins.Shipping.Fedex.Fields.UseResidentialRates")]
     public bool UseResidentialRates { get; set; }
 
@@ -51,7 +39,15 @@ public record FedexShippingModel : BaseNopModel
     [NopResourceDisplayName("Plugins.Shipping.Fedex.Fields.PackingType")]
     public SelectList PackingTypeValues { get; set; }
 
-    public int DropoffType { get; set; }
-    [NopResourceDisplayName("Plugins.Shipping.Fedex.Fields.DropoffType")]
-    public SelectList AvailableDropOffTypes { get; set; }
+    [NopResourceDisplayName("Plugins.Shipping.Fedex.Fields.ClientId")]
+    public string ClientId { get; set; }
+
+    [NopResourceDisplayName("Plugins.Shipping.Fedex.Fields.ClientSecret")]
+    public string ClientSecret { get; set; }
+
+    [NopResourceDisplayName("Plugins.Shipping.Fedex.Fields.UseSandbox")]
+    public bool UseSandbox { get; set; }
+
+    [NopResourceDisplayName("Plugins.Shipping.Fedex.Fields.Tracing")]
+    public bool Tracing { get; set; }
 }

@@ -1,7 +1,7 @@
 ﻿using System.Text;
 using Microsoft.AspNetCore.Mvc;
-using Nop.Plugin.Shipping.Fedex.Domain;
 using Nop.Plugin.Shipping.Fedex.Models;
+using Nop.Plugin.Shipping.Fedex.Services;
 using Nop.Services;
 using Nop.Services.Configuration;
 using Nop.Services.Localization;
@@ -52,15 +52,13 @@ public class ShippingFedexController : BasePluginController
         if (!await _permissionService.AuthorizeAsync(StandardPermissionProvider.ManageShippingSettings))
             return AccessDeniedView();
 
-        var model = new FedexShippingModel()
+        var model = new FedexShippingModel
         {
-            Url = _fedexSettings.Url,
-            Key = _fedexSettings.Key,
-            Password = _fedexSettings.Password,
+            UseSandbox = _fedexSettings.UseSandbox,
+            ClientId = _fedexSettings.ClientId,
+            ClientSecret = _fedexSettings.ClientSecret,
             AccountNumber = _fedexSettings.AccountNumber,
-            MeterNumber = _fedexSettings.MeterNumber,
-            DropoffType = Convert.ToInt32(_fedexSettings.DropoffType),
-            AvailableDropOffTypes = await _fedexSettings.DropoffType.ToSelectListAsync(),
+            Tracing = _fedexSettings.Tracing,
             UseResidentialRates = _fedexSettings.UseResidentialRates,
             ApplyDiscounts = _fedexSettings.ApplyDiscounts,
             AdditionalHandlingCharge = _fedexSettings.AdditionalHandlingCharge,
@@ -71,17 +69,17 @@ public class ShippingFedexController : BasePluginController
         };
 
         // Load service names
-        var availableServices = new FedexServices().Services;
+        var availableServices = FedexService.GetAllFedExServicesName();
         model.AvailableCarrierServices = availableServices;
+        
         if (!string.IsNullOrEmpty(_fedexSettings.CarrierServicesOffered))
-        {
             foreach (var service in availableServices)
             {
-                var serviceId = FedexServices.GetServiceId(service);
+                var serviceId = FedexService.GetFedExServiceId(service);
+                
                 if (!string.IsNullOrEmpty(serviceId) && _fedexSettings.CarrierServicesOffered.Contains(serviceId))
                     model.CarrierServicesOffered.Add(service);
             }
-        }
 
         return View("~/Plugins/Shipping.Fedex/Views/Configure.cshtml", model);
     }
@@ -96,12 +94,11 @@ public class ShippingFedexController : BasePluginController
             return await Configure();
 
         //save settings
-        _fedexSettings.Url = model.Url;
-        _fedexSettings.Key = model.Key;
-        _fedexSettings.Password = model.Password;
+        _fedexSettings.ClientId = model.ClientId;
+        _fedexSettings.ClientSecret = model.ClientSecret;
+        _fedexSettings.UseSandbox = model.UseSandbox;
         _fedexSettings.AccountNumber = model.AccountNumber;
-        _fedexSettings.MeterNumber = model.MeterNumber;
-        _fedexSettings.DropoffType = (DropoffType)model.DropoffType;
+        _fedexSettings.Tracing = model.Tracing;
         _fedexSettings.UseResidentialRates = model.UseResidentialRates;
         _fedexSettings.ApplyDiscounts = model.ApplyDiscounts;
         _fedexSettings.AdditionalHandlingCharge = model.AdditionalHandlingCharge;
@@ -112,21 +109,19 @@ public class ShippingFedexController : BasePluginController
         // Save selected services
         var carrierServicesOfferedDomestic = new StringBuilder();
         var carrierServicesDomesticSelectedCount = 0;
+        
         if (model.CheckedCarrierServices != null)
-        {
             foreach (var cs in model.CheckedCarrierServices)
             {
                 carrierServicesDomesticSelectedCount++;
-                var serviceId = FedexServices.GetServiceId(cs);
+                var serviceId = FedexService.GetFedExServiceId(cs);
+                
                 if (!string.IsNullOrEmpty(serviceId))
                     carrierServicesOfferedDomestic.AppendFormat("{0}:", serviceId);
             }
-        }
+
         // Add default options if no services were selected
-        if (carrierServicesDomesticSelectedCount == 0)
-            _fedexSettings.CarrierServicesOffered = "FEDEX_2_DAY:PRIORITY_OVERNIGHT:FEDEX_GROUND:GROUND_HOME_DELIVERY:INTERNATIONAL_ECONOMY";
-        else
-            _fedexSettings.CarrierServicesOffered = carrierServicesOfferedDomestic.ToString();
+        _fedexSettings.CarrierServicesOffered = carrierServicesDomesticSelectedCount == 0 ? "FEDEX_2_DAY:PRIORITY_OVERNIGHT:FEDEX_GROUND:GROUND_HOME_DELIVERY:INTERNATIONAL_ECONOMY" : carrierServicesOfferedDomestic.ToString();
 
         await _settingService.SaveSettingAsync(_fedexSettings);
 

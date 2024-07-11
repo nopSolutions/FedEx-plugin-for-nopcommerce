@@ -9,7 +9,7 @@ namespace Nop.Plugin.Shipping.Fedex.Infrastructure;
 /// <summary>
 /// Represents object for the configuring services on application startup
 /// </summary>
-public partial class PluginNopStartup : INopStartup
+public class PluginNopStartup : INopStartup
 {
     /// <summary>
     /// Add and configure any of the middleware

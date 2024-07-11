@@ -94,8 +94,6 @@ public class FedexComputationMethod : BasePlugin, IShippingRateComputationMethod
         //settings
         var settings = new FedexSettings
         {
-            Url = "https://gatewaybeta.fedex.com:443/web-services/rate",
-            DropoffType = DropoffType.BusinessServiceCenter,
             PackingPackageVolume = 5184
         };
         await _settingService.SaveSettingAsync(settings);
@@ -103,16 +101,16 @@ public class FedexComputationMethod : BasePlugin, IShippingRateComputationMethod
         //locales
         await _localizationService.AddOrUpdateLocaleResourceAsync(new Dictionary<string, string>
         {
-            ["Plugins.Shipping.Fedex.Fields.Url"] = "URL",
-            ["Plugins.Shipping.Fedex.Fields.Url.Hint"] = "Specify FedEx URL.",
-            ["Plugins.Shipping.Fedex.Fields.Key"] = "Key",
-            ["Plugins.Shipping.Fedex.Fields.Key.Hint"] = "Specify FedEx key.",
-            ["Plugins.Shipping.Fedex.Fields.Password"] = "Password",
-            ["Plugins.Shipping.Fedex.Fields.Password.Hint"] = "Specify FedEx password.",
+            ["Plugins.Shipping.Fedex.Fields.ClientId"] = "Client ID",
+            ["Plugins.Shipping.Fedex.Fields.ClientId.Hint"] = "Specify FedEx client ID.",
+            ["Plugins.Shipping.Fedex.Fields.ClientSecret"] = "Client secret",
+            ["Plugins.Shipping.Fedex.Fields.ClientSecret.Hint"] = "Specify FedEx client secret.",
+            ["Plugins.Shipping.Fedex.Fields.Tracing"] = "Tracing",
+            ["Plugins.Shipping.Fedex.Fields.Tracing.Hint"] = "Check if you want to record plugin tracing in System Log. Warning: The entire request and response will be logged (including Client Id/secret, AccountNumber). Do not leave this enabled in a production environment.",
+            ["Plugins.Shipping.Fedex.Fields.UseSandbox"] = "Use sandbox",
+            ["Plugins.Shipping.Fedex.Fields.UseSandbox.Hint"] = "Check to use sandbox (testing environment).",
             ["Plugins.Shipping.Fedex.Fields.AccountNumber"] = "Account number",
             ["Plugins.Shipping.Fedex.Fields.AccountNumber.Hint"] = "Specify FedEx account number.",
-            ["Plugins.Shipping.Fedex.Fields.MeterNumber"] = "Meter number",
-            ["Plugins.Shipping.Fedex.Fields.MeterNumber.Hint"] = "Specify FedEx meter number.",
             ["Plugins.Shipping.Fedex.Fields.UseResidentialRates"] = "Use residential rates",
             ["Plugins.Shipping.Fedex.Fields.UseResidentialRates.Hint"] = "Check to use residential rates.",
             ["Plugins.Shipping.Fedex.Fields.ApplyDiscounts"] = "Use discounted rates",
@@ -127,16 +125,6 @@ public class FedexComputationMethod : BasePlugin, IShippingRateComputationMethod
             ["Plugins.Shipping.Fedex.Fields.PackingType.Hint"] = "Choose preferred packing type.",
             ["Plugins.Shipping.Fedex.Fields.PackingPackageVolume"] = "Package volume",
             ["Plugins.Shipping.Fedex.Fields.PackingPackageVolume.Hint"] = "Enter your package volume.",
-            ["Plugins.Shipping.Fedex.Fields.DropoffType"] = "Dropoff Type",
-            ["Plugins.Shipping.Fedex.Fields.DropoffType.Hint"] = "Choose preferred dropoff type.",
-            ["Enums.Nop.Plugin.Shipping.Fedex.DropoffType.BusinessServiceCenter"] = "Business service center",
-            ["Enums.Nop.Plugin.Shipping.Fedex.DropoffType.DropBox"] = "Drop box",
-            ["Enums.Nop.Plugin.Shipping.Fedex.DropoffType.RegularPickup"] = "Regular pickup",
-            ["Enums.Nop.Plugin.Shipping.Fedex.DropoffType.RequestCourier"] = "Request courier",
-            ["Enums.Nop.Plugin.Shipping.Fedex.DropoffType.Station"] = "Station",
-            ["Enums.Nop.Plugin.Shipping.Fedex.PackingType.PackByDimensions"] = "Pack by dimensions",
-            ["Enums.Nop.Plugin.Shipping.Fedex.PackingType.PackByOneItemPerPackage"] = "Pack by one item per package",
-            ["Enums.Nop.Plugin.Shipping.Fedex.PackingType.PackByVolume"] = "Pack by volume"
         });
 
         await base.InstallAsync();
