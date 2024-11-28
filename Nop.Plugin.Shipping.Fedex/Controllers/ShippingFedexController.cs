@@ -23,7 +23,6 @@ public class ShippingFedexController : BasePluginController
     private readonly FedexSettings _fedexSettings;
     private readonly ILocalizationService _localizationService;
     private readonly INotificationService _notificationService;
-    private readonly IPermissionService _permissionService;
     private readonly ISettingService _settingService;
 
     #endregion
@@ -33,13 +32,11 @@ public class ShippingFedexController : BasePluginController
     public ShippingFedexController(FedexSettings fedexSettings,
         ILocalizationService localizationService,
         INotificationService notificationService,
-        IPermissionService permissionService,
         ISettingService settingService)
     {
         _fedexSettings = fedexSettings;
         _localizationService = localizationService;
         _notificationService = notificationService;
-        _permissionService = permissionService;
         _settingService = settingService;
     }
 
@@ -47,11 +44,9 @@ public class ShippingFedexController : BasePluginController
 
     #region Methods
 
+    [CheckPermission(StandardPermission.Orders.SHIPMENTS_VIEW)]
     public async Task<IActionResult> Configure()
     {
-        if (!await _permissionService.AuthorizeAsync(StandardPermissionProvider.ManageShippingSettings))
-            return AccessDeniedView();
-
         var model = new FedexShippingModel
         {
             UseSandbox = _fedexSettings.UseSandbox,
@@ -85,11 +80,9 @@ public class ShippingFedexController : BasePluginController
     }
 
     [HttpPost]
+    [CheckPermission(StandardPermission.Orders.SHIPMENTS_CREATE_EDIT_DELETE)]
     public async Task<IActionResult> Configure(FedexShippingModel model)
     {
-        if (!await _permissionService.AuthorizeAsync(StandardPermissionProvider.ManageShippingSettings))
-            return AccessDeniedView();
-
         if (!ModelState.IsValid)
             return await Configure();
 

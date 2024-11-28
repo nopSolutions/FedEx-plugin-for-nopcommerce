@@ -1,7 +1,6 @@
 ﻿using Microsoft.Net.Http.Headers;
 using Nop.Core.Infrastructure;
 using Nop.Services.Logging;
-using static System.TimeSpan;
 
 namespace Nop.Plugin.Shipping.Fedex.API;
 
@@ -14,7 +13,7 @@ public static class HttpClientExtensions
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(fedexSettings);
 
-        httpClient.Timeout = FromSeconds(fedexSettings.RequestTimeout ?? FedexShippingDefaults.RequestTimeout);
+        httpClient.Timeout = TimeSpan.FromSeconds(fedexSettings.RequestTimeout ?? FedexShippingDefaults.RequestTimeout);
         httpClient.DefaultRequestHeaders.Add(HeaderNames.UserAgent, FedexShippingDefaults.UserAgent);
 
         if (!string.IsNullOrEmpty(accessToken) && !request.Headers.Contains(HeaderNames.Authorization))
