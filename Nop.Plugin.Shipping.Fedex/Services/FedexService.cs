@@ -882,6 +882,13 @@ public class FedexService
 
             return response;
         }
+        catch (API.Rates.ApiException<API.Rates.ErrorResponseVO> e)
+        {
+            Debug.WriteLine(e.Message);
+            response.AddError(e.Message);
+            response.AddError(string.Join(Environment.NewLine, e.Result.Errors.Select(error => $"{error.Code}: {error.Message}")));
+            return response;
+        }
         catch (Exception e)
         {
             Debug.WriteLine(e.Message);
