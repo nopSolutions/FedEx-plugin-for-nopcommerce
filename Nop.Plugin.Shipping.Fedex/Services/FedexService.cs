@@ -703,30 +703,37 @@ public class FedexService
 
         request.RequestedShipment.ShipDateStamp = shipTimestamp.ToString("yyyy-MM-dd"); // Shipping date and time
 
-        //for India domestic shipping add additional details
-        if (request.RequestedShipment.Shipper.Address.CountryCode.Equals("IN", StringComparison.InvariantCultureIgnoreCase) &&
-            request.RequestedShipment.Recipient.Address.CountryCode.Equals("IN", StringComparison.InvariantCultureIgnoreCase))
-        {
-            var commodity = new Commodity
-            {
-                Name = "1",
-                NumberOfPieces = 1,
-                CustomsValue = new Money
-                {
-                    Amount = (double)orderSubTotal,
-                    Currency = currencyCode
-                }
-            };
+        var isInternational = !request.RequestedShipment.Shipper.Address.CountryCode.Equals(request.RequestedShipment.Recipient.Address.CountryCode, StringComparison.InvariantCultureIgnoreCase);
+        var isShipmentToIndia = request.RequestedShipment.Shipper.Address.CountryCode.Equals("IN", StringComparison.InvariantCultureIgnoreCase) && request.RequestedShipment.Recipient.Address.CountryCode.Equals("IN", StringComparison.InvariantCultureIgnoreCase);
 
-            request.RequestedShipment.CustomsClearanceDetail = new RequestedShipmentCustomsClearanceDetail
+        if (!isInternational && !isShipmentToIndia)
+            return;
+
+        //for international shipments and shipments to India, FedEx requires customs commodity details.
+        var commodityPieces = request.RequestedShipment.TotalPackageCount > 0 ? request.RequestedShipment.TotalPackageCount : 1;
+
+        var commodity = new Commodity
+        {
+            Name = "1",
+            CountryOfManufacture = request.RequestedShipment.Shipper.Address.CountryCode,
+            NumberOfPieces = commodityPieces,
+            QuantityUnits = "PCS",
+            Quantity = commodityPieces,
+            CustomsValue = new Money
             {
-                CommercialInvoice = new CommercialInvoice
-                {
-                    ShipmentPurpose = CommercialInvoiceShipmentPurpose.SOLD
-                },
-                Commodities = new[] { commodity }
-            };
-        }
+                Amount = (double)orderSubTotal,
+                Currency = currencyCode
+            }
+        };
+
+        request.RequestedShipment.CustomsClearanceDetail = new RequestedShipmentCustomsClearanceDetail
+        {
+            CommercialInvoice = new CommercialInvoice
+            {
+                ShipmentPurpose = CommercialInvoiceShipmentPurpose.SOLD
+            },
+            Commodities = [commodity]
+        };
     }
 
     private static bool IsPackageTooHeavy(decimal weight)
