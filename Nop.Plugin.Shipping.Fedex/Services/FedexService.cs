@@ -703,14 +703,20 @@ public class FedexService
 
         request.RequestedShipment.ShipDateStamp = shipTimestamp.ToString("yyyy-MM-dd"); // Shipping date and time
 
-        //for India domestic shipping add additional details
-        if (request.RequestedShipment.Shipper.Address.CountryCode.Equals("IN", StringComparison.InvariantCultureIgnoreCase) &&
-            request.RequestedShipment.Recipient.Address.CountryCode.Equals("IN", StringComparison.InvariantCultureIgnoreCase))
+        var isInternational = !request.RequestedShipment.Shipper.Address.CountryCode.Equals(request.RequestedShipment.Recipient.Address.CountryCode, StringComparison.InvariantCultureIgnoreCase);
+        var commodityPieces = request.RequestedShipment.TotalPackageCount > 0 ? request.RequestedShipment.TotalPackageCount : 1;
+
+        //For shipments to India, FedEx requires customs commodity details.
+        if (isInternational || (request.RequestedShipment.Shipper.Address.CountryCode.Equals("IN", StringComparison.InvariantCultureIgnoreCase) &&
+            request.RequestedShipment.Recipient.Address.CountryCode.Equals("IN", StringComparison.InvariantCultureIgnoreCase)))
         {
             var commodity = new Commodity
             {
                 Name = "1",
-                NumberOfPieces = 1,
+                CountryOfManufacture = request.RequestedShipment.Shipper.Address.CountryCode,
+                NumberOfPieces = commodityPieces,
+                QuantityUnits = "PCS",
+                Quantity = commodityPieces,
                 CustomsValue = new Money
                 {
                     Amount = (double)orderSubTotal,
@@ -724,7 +730,7 @@ public class FedexService
                 {
                     ShipmentPurpose = CommercialInvoiceShipmentPurpose.SOLD
                 },
-                Commodities = new[] { commodity }
+                Commodities = [ commodity ]
             };
         }
     }
