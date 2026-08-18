@@ -16,6 +16,7 @@ using Nop.Services.Logging;
 using Nop.Services.Orders;
 using Nop.Services.Shipping;
 using Nop.Services.Shipping.Tracking;
+using ErrorResponseVO = Nop.Plugin.Shipping.Fedex.API.Rates.ErrorResponseVO;
 
 namespace Nop.Plugin.Shipping.Fedex.Services;
 
@@ -342,9 +343,9 @@ public class FedexService
         Debug.WriteLine($"SubTotal (Primary Currency) : {subTotalWithDiscountBase} ({primaryStoreCurrency.CurrencyCode})");
         Debug.WriteLine($"SubTotal (Shipment Currency): {subTotalShipmentCurrency} ({requestedShipmentCurrency.CurrencyCode})");
 
-        SetShipmentDetails(request, subTotalShipmentCurrency, requestedShipmentCurrency.CurrencyCode);
         SetPayment(request);
-
+        SetShipmentDetails(request, subTotalShipmentCurrency, requestedShipmentCurrency.CurrencyCode);
+        
         //set packages details
         switch (_fedexSettings.PackingType)
         {
@@ -671,20 +672,16 @@ public class FedexService
 
     private void SetPayment(Full_Schema_Quote_Rate request)
     {
-        request.RequestedShipment.CustomsClearanceDetail = new RequestedShipmentCustomsClearanceDetail
+        request.RequestedShipment.CustomsClearanceDetail ??= new RequestedShipmentCustomsClearanceDetail();
+
+        request.RequestedShipment.CustomsClearanceDetail.DutiesPayment = new Payment
         {
-            DutiesPayment = new Payment
+            PaymentType = PaymentType.SENDER, // Payment options are RECIPIENT, SENDER, THIRD_PARTY
+            Payor = new Payor
             {
-                PaymentType = PaymentType.SENDER, // Payment options are RECIPIENT, SENDER, THIRD_PARTY
-                Payor = new Payor
+                ResponsibleParty = new ResponsibleParty
                 {
-                    ResponsibleParty = new ResponsibleParty
-                    {
-                        AccountNumber = new AccountNumber
-                        {
-                            Value = _fedexSettings.AccountNumber
-                        }
-                    }
+                    AccountNumber = new AccountNumber { Value = _fedexSettings.AccountNumber }
                 }
             }
         };
@@ -726,14 +723,14 @@ public class FedexService
             }
         };
 
-        request.RequestedShipment.CustomsClearanceDetail = new RequestedShipmentCustomsClearanceDetail
+        request.RequestedShipment.CustomsClearanceDetail ??= new RequestedShipmentCustomsClearanceDetail();
+
+        request.RequestedShipment.CustomsClearanceDetail.CommercialInvoice = new CommercialInvoice
         {
-            CommercialInvoice = new CommercialInvoice
-            {
-                ShipmentPurpose = CommercialInvoiceShipmentPurpose.SOLD
-            },
-            Commodities = [commodity]
+            ShipmentPurpose = CommercialInvoiceShipmentPurpose.SOLD
         };
+
+        request.RequestedShipment.CustomsClearanceDetail.Commodities = [commodity];
     }
 
     private static bool IsPackageTooHeavy(decimal weight)
@@ -887,6 +884,22 @@ public class FedexService
             foreach (var shippingOption in shippingOptions)
                 response.ShippingOptions.Add(shippingOption);
 
+            return response;
+        }
+        catch (API.Rates.ApiException<ErrorResponseVO> apiException)
+        {
+            var errorMessage = apiException.Message;
+
+            if (apiException.StatusCode == 400)
+            {
+                var errors = apiException.Result.Errors;
+
+                if (errors?.Any() ?? false)
+                    errorMessage += $"\r\nFedEx Error Details: {string.Join(", ", errors.Select(e => e.Message))}";
+            }
+
+            Debug.WriteLine(errorMessage);
+            response.AddError(errorMessage);
             return response;
         }
         catch (Exception e)
