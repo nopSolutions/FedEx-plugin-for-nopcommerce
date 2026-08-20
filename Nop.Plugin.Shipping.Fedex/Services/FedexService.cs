@@ -872,9 +872,9 @@ public class FedexService
             //try to get response details
 
             var reply = await client.ProcessRateAsync(request, await GetAccessTokenAsync());
-
-            if (reply.Alerts?.Any() ?? false)
-                throw new NopException(reply.Alerts.First().Message);
+            
+            if (_fedexSettings.Tracing && (reply.Alerts?.Any() ?? false))
+                await _logger.InformationAsync("FedEx API response alerts: " + string.Join(Environment.NewLine, reply.Alerts.Select(x => $"{x.Code}: {x.Message}")));
 
             if (reply.RateReplyDetails == null)
                 return response;
