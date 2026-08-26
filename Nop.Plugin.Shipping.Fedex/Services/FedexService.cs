@@ -870,14 +870,26 @@ public class FedexService
         try
         {
             //try to get response details
-
             var reply = await client.ProcessRateAsync(request, await GetAccessTokenAsync());
 
-            if (reply.Alerts?.Any() ?? false)
-                throw new NopException(reply.Alerts.First().Message);
+            var errorMessage = string.Empty;
 
-            if (reply.RateReplyDetails == null)
+            if (reply.Alerts?.Any() ?? false)
+                errorMessage = "FedEx API response alerts: " + string.Join(Environment.NewLine, reply.Alerts.Select(x => $"{x.Code}: {x.Message}"));
+
+            if (reply.RateReplyDetails == null || !reply.RateReplyDetails.Any())
+            {
+                if(!string.IsNullOrEmpty(errorMessage))
+                    response.AddError(errorMessage);
+
                 return response;
+            }
+
+            if (!string.IsNullOrEmpty(errorMessage) && _fedexSettings.Tracing)
+            {
+                Debug.WriteLine(errorMessage);
+                await _logger.WarningAsync(errorMessage);
+            }
 
             var shippingOptions = await ParseResponseAsync(reply, requestedShipmentCurrency);
 
