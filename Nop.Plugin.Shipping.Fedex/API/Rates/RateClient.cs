@@ -2072,7 +2072,7 @@ namespace Nop.Plugin.Shipping.Fedex.API.Rates
         public DateDetail DateDetail { get; set; }
 
         [Newtonsoft.Json.JsonProperty("delayDetails", Required = Newtonsoft.Json.Required.DisallowNull, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public DelayDetail DelayDetails { get; set; }
+        public IList<DelayDetail> DelayDetails { get; set; }
 
         /// <summary>
         /// Specifies the saturdayDelivery.
