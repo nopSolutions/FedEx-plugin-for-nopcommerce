@@ -467,8 +467,7 @@ public class FedexService
 
         var recipientCountryCode = (await _countryService.GetCountryByAddressAsync(getShippingOptionRequest.ShippingAddress))?.TwoLetterIsoCode ?? string.Empty;
 
-        if (await _stateProvinceService.GetStateProvinceByAddressAsync(getShippingOptionRequest.ShippingAddress) is { } stateProvince &&
-            IncludeStateProvinceCode(recipientCountryCode))
+        if (await _stateProvinceService.GetStateProvinceByAddressAsync(getShippingOptionRequest.ShippingAddress) is { } stateProvince)
             request.RequestedShipment.Recipient.Address.StateOrProvinceCode = stateProvince.Abbreviation;
         else
             request.RequestedShipment.Recipient.Address.StateOrProvinceCode = string.Empty;
